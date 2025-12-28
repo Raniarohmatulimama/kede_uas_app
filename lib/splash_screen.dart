@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:provider/provider.dart';
 import 'welcome_screen.dart';
+import 'providers/user_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,19 +18,31 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // Load user data from SharedPreferences FIRST (await)
+    await Provider.of<UserProvider>(context, listen: false).loadUserData();
+
     // Timer for dot animation
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      setState(() {
-        _currentDot = (_currentDot + 1) % 3;
-      });
+      if (mounted) {
+        setState(() {
+          _currentDot = (_currentDot + 1) % 3;
+        });
+      }
     });
-    // Timer for navigation
+
+    // Timer for navigation (wait 3 seconds then navigate)
     Timer(const Duration(seconds: 3), () {
       _dotTimer?.cancel();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const WelcomeScreen()),
-      );
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+        );
+      }
     });
   }
 

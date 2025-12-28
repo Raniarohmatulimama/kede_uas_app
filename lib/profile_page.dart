@@ -1,11 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'home/HomePage.dart';
 import 'home/categories_page.dart';
 import 'shopping_cart/shopping.cart.dart';
 import 'wishlist/WishlistPage.dart';
+import 'providers/user_provider.dart';
 
-class ProfilePageDetail extends StatelessWidget {
+class ProfilePageDetail extends StatefulWidget {
   const ProfilePageDetail({Key? key}) : super(key: key);
+
+  @override
+  State<ProfilePageDetail> createState() => _ProfilePageDetailState();
+}
+
+class _ProfilePageDetailState extends State<ProfilePageDetail> {
+  @override
+  void initState() {
+    super.initState();
+    // Load user data immediately when page is opened
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      userProvider.loadUserData();
+    });
+  }
+
+  Future<void> _refreshUserData() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    await userProvider.loadUserData();
+  }
+
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10.0),
@@ -42,52 +65,94 @@ class ProfilePageDetail extends StatelessWidget {
         ),
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                'assets/images/3.jpg',
-                width: 120,
-                height: 120,
-                fit: BoxFit.cover,
+      body: Consumer<UserProvider>(
+        builder: (context, userProvider, _) {
+          return RefreshIndicator(
+            onRefresh: _refreshUserData,
+            color: const Color(0xFF4CB32B),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: userProvider.photoPath != null
+                        ? Image.network(
+                            userProvider.photoPath!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Image.asset(
+                                  'assets/images/3.jpg',
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                ),
+                          )
+                        : Image.asset(
+                            'assets/images/3.jpg',
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    userProvider.fullName,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Member',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    userProvider.email.isNotEmpty
+                        ? userProvider.email
+                        : 'No email provided',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Info rows
+                  _buildInfoRow(
+                    'Full Name',
+                    userProvider.fullName.isNotEmpty
+                        ? userProvider.fullName
+                        : 'N/A',
+                  ),
+                  _buildInfoRow(
+                    'Phone',
+                    userProvider.phone.isNotEmpty
+                        ? userProvider.phone
+                        : 'Not set',
+                  ),
+                  _buildInfoRow(
+                    'Email Address',
+                    userProvider.email.isNotEmpty ? userProvider.email : 'N/A',
+                  ),
+                  _buildInfoRow('Total Order', '0'),
+
+                  const SizedBox(height: 120),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Richard Brownlee',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Engineer',
-              style: TextStyle(
-                color: Colors.green,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black54),
-            ),
-            const SizedBox(height: 24),
-
-            // Info rows
-            _buildInfoRow('Full Name', 'Richard Brownlee'),
-            _buildInfoRow('User Name', 'RichBrown'),
-            _buildInfoRow('Phone', '(+91) 123 456 7890'),
-            _buildInfoRow('Email Address', 'info@example.com'),
-            _buildInfoRow('Shipping Address', 'Marmora Road City'),
-            _buildInfoRow('Total Order', '05'),
-
-            const SizedBox(height: 120),
-          ],
-        ),
+          );
+        },
       ),
       bottomNavigationBar: BottomAppBar(
         elevation: 0,

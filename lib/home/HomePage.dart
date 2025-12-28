@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 import '../config/api_config.dart';
 import '../shopping_cart/shopping.cart.dart';
 import '../wishlist/WishlistPage.dart';
@@ -10,6 +11,7 @@ import '../detail_page.dart';
 import '../user/user_page.dart';
 import '../notifications_page.dart';
 import '../services/auth_service.dart';
+import '../providers/user_provider.dart';
 import 'categories_page.dart';
 import 'add_product_page.dart';
 
@@ -223,10 +225,13 @@ class HomeContent extends StatefulWidget {
 class _HomeContentState extends State<HomeContent> {
   final Set<String> _favorites = {'Avocado'};
 
-  Future<bool> _checkIfLoggedIn() async {
-    // Check Firebase Auth
-    final currentUser = AuthService.currentUser;
-    return currentUser != null;
+  @override
+  void initState() {
+    super.initState();
+    // Load user data when HomeContent is initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<UserProvider>(context, listen: false).loadUserData();
+    });
   }
 
   @override
@@ -241,67 +246,29 @@ class _HomeContentState extends State<HomeContent> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  FutureBuilder<bool>(
-                    future: _checkIfLoggedIn(),
-                    builder: (context, snapshot) {
-                      final isLoggedIn = snapshot.data ?? false;
-                      if (!isLoggedIn) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Good Morning',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'pengguna',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                      return FutureBuilder<String?>(
-                        future: AuthService.getFirstName(),
-                        builder: (context, firstNameSnap) {
-                          return FutureBuilder<String?>(
-                            future: AuthService.getLastName(),
-                            builder: (context, lastNameSnap) {
-                              final firstName = firstNameSnap.data ?? '';
-                              final lastName = lastNameSnap.data ?? '';
-                              final fullName = '$firstName $lastName'.trim();
+                  Consumer<UserProvider>(
+                    builder: (context, userProvider, _) {
+                      final isLoggedIn = AuthService.currentUser != null;
+                      final fullName = userProvider.fullName;
 
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Good Morning',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    fullName.isNotEmpty ? fullName : 'User',
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        },
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Good Morning',
+                            style: TextStyle(color: Colors.grey, fontSize: 14),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            isLoggedIn ? fullName : 'pengguna',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       );
                     },
                   ),

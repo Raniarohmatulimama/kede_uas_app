@@ -5,14 +5,18 @@ import 'splash_screen.dart';
 import 'user/user_page.dart';
 import 'home/HomePage.dart';
 import 'theme_provider.dart';
+import 'providers/user_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FirebaseConfig.initialize();
 
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider(create: (context) => UserProvider()),
+      ],
       child: const KedeGroceryApp(),
     ),
   );
