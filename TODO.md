@@ -1,0 +1,4 @@
+- [ ] Ubah actionsAlignment di _showConfirmDialog dari MainAxisAlignment.center ke MainAxisAlignment.end
+- [ ] Ubah actionsAlignment di _showPromptDialog dari MainAxisAlignment.center ke MainAxisAlignment.end
+- [ ] Ubah actionsAlignment di _showLoginDialog dari MainAxisAlignment.center ke MainAxisAlignment.end
+- [ ] Ubah actionsAlignment di _showPasswordDialog dari MainAxisAlignment.center ke MainAxisAlignment.end
