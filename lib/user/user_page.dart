@@ -11,6 +11,7 @@ import '../color_skin.dart';
 import '../theme_provider.dart';
 import '../webview_page.dart';
 import '../services/auth_service.dart';
+import '../providers/user_provider.dart';
 import 'my_profile_page_clean.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -140,7 +141,9 @@ class ProfilePage extends StatelessWidget {
           if (confirm == true) {
             await AuthService.signOut();
 
+            // Clear user data from provider
             if (context.mounted) {
+              Provider.of<UserProvider>(context, listen: false).clearUserData();
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const SignInScreen()),

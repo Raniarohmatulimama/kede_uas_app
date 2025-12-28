@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../config/firebase_config.dart';
@@ -7,6 +8,7 @@ import '../create_account/create_account.dart';
 import '../forgot_password/forget_password_screen.dart';
 import '../home/HomePage.dart';
 import '../welcome_screen.dart';
+import '../providers/user_provider.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({Key? key}) : super(key: key);
@@ -56,12 +58,25 @@ class _SignInScreenState extends State<SignInScreen> {
 
           if (userDoc.exists) {
             final userData = userDoc.data()!;
+            final firstName = userData['first_name'] ?? '';
+            final lastName = userData['last_name'] ?? '';
+            final email = userData['email'] ?? user.email ?? '';
+
             // Save user data locally
             await AuthService.saveUserData(
-              firstName: userData['first_name'] ?? '',
-              lastName: userData['last_name'] ?? '',
-              email: userData['email'] ?? user.email ?? '',
+              firstName: firstName,
+              lastName: lastName,
+              email: email,
             );
+
+            // Update UserProvider
+            if (mounted) {
+              Provider.of<UserProvider>(context, listen: false).updateUserData(
+                firstName: firstName,
+                lastName: lastName,
+                email: email,
+              );
+            }
           }
         } catch (e) {
           print('[SignIn] Error fetching user data: $e');
