@@ -1070,6 +1070,79 @@ class _ProductCard extends StatefulWidget {
 
 class _ProductCardState extends State<_ProductCard> {
   bool isFavorite = false;
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfInWishlist();
+  }
+
+  Future<void> _checkIfInWishlist() async {
+    final inWishlist = await ApiService.isInWishlist(widget.product.id);
+    if (mounted) {
+      setState(() {
+        isFavorite = inWishlist;
+      });
+    }
+  }
+
+  Future<void> _toggleWishlist() async {
+    if (isLoading) return;
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final result = isFavorite
+          ? await ApiService.removeFromWishlist(widget.product.id)
+          : await ApiService.addToWishlist(widget.product.id);
+
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+
+        if (result['success']) {
+          setState(() {
+            isFavorite = !isFavorite;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isFavorite
+                    ? '${widget.product.name} added to wishlist'
+                    : '${widget.product.name} removed from wishlist',
+              ),
+              duration: const Duration(seconds: 2),
+              backgroundColor: isFavorite ? Colors.green : Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${result['message']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1127,11 +1200,7 @@ class _ProductCardState extends State<_ProductCard> {
                 top: 12,
                 left: 12,
                 child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      isFavorite = !isFavorite;
-                    });
-                  },
+                  onTap: _toggleWishlist,
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -1145,11 +1214,24 @@ class _ProductCardState extends State<_ProductCard> {
                         ),
                       ],
                     ),
-                    child: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.pink : Colors.grey.shade600,
-                      size: 20,
-                    ),
+                    child: isLoading
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                isFavorite ? Colors.pink : Colors.grey.shade600,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: isFavorite
+                                ? Colors.pink
+                                : Colors.grey.shade600,
+                            size: 20,
+                          ),
                   ),
                 ),
               ),

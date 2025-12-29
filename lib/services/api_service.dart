@@ -421,6 +421,158 @@ class ApiService {
     }
   }
 
+  // ============= Wishlist =============
+
+  /// Add product to wishlist
+  static Future<Map<String, dynamic>> addToWishlist(String productId) async {
+    try {
+      final userId = AuthService.currentUserId;
+      if (userId == null) {
+        return {'success': false, 'message': 'User not authenticated'};
+      }
+
+      // Get current user's wishlist
+      final userRef = _firestore
+          .collection(FirebaseConfig.usersCollection)
+          .doc(userId);
+      final userDoc = await userRef.get();
+
+      if (!userDoc.exists) {
+        return {'success': false, 'message': 'User not found'};
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final wishlist = List<String>.from(userData['wishlist'] ?? []);
+
+      // Add product if not already in wishlist
+      if (!wishlist.contains(productId)) {
+        wishlist.add(productId);
+        await userRef.update({'wishlist': wishlist});
+        print('[API] Product $productId added to wishlist');
+      }
+
+      return {'success': true, 'message': 'Product added to wishlist'};
+    } catch (e) {
+      print('[API] Error adding to wishlist: $e');
+      return {'success': false, 'message': 'Failed to add to wishlist: $e'};
+    }
+  }
+
+  /// Remove product from wishlist
+  static Future<Map<String, dynamic>> removeFromWishlist(
+    String productId,
+  ) async {
+    try {
+      final userId = AuthService.currentUserId;
+      if (userId == null) {
+        return {'success': false, 'message': 'User not authenticated'};
+      }
+
+      // Get current user's wishlist
+      final userRef = _firestore
+          .collection(FirebaseConfig.usersCollection)
+          .doc(userId);
+      final userDoc = await userRef.get();
+
+      if (!userDoc.exists) {
+        return {'success': false, 'message': 'User not found'};
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final wishlist = List<String>.from(userData['wishlist'] ?? []);
+
+      // Remove product if in wishlist
+      wishlist.removeWhere((id) => id == productId);
+      await userRef.update({'wishlist': wishlist});
+      print('[API] Product $productId removed from wishlist');
+
+      return {'success': true, 'message': 'Product removed from wishlist'};
+    } catch (e) {
+      print('[API] Error removing from wishlist: $e');
+      return {
+        'success': false,
+        'message': 'Failed to remove from wishlist: $e',
+      };
+    }
+  }
+
+  /// Get user's wishlist products
+  static Future<Map<String, dynamic>> getWishlist() async {
+    try {
+      final userId = AuthService.currentUserId;
+      if (userId == null) {
+        return {'success': false, 'message': 'User not authenticated'};
+      }
+
+      // Get current user's wishlist
+      final userDoc = await _firestore
+          .collection(FirebaseConfig.usersCollection)
+          .doc(userId)
+          .get();
+
+      if (!userDoc.exists) {
+        return {'success': false, 'message': 'User not found'};
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final wishlistIds = List<String>.from(userData['wishlist'] ?? []);
+
+      // If wishlist is empty, return empty list
+      if (wishlistIds.isEmpty) {
+        return {
+          'success': true,
+          'data': {'data': []},
+        };
+      }
+
+      // Fetch wishlist products
+      final productsQuery = await _firestore
+          .collection(FirebaseConfig.productsCollection)
+          .where(FieldPath.documentId, whereIn: wishlistIds)
+          .get();
+
+      final products = productsQuery.docs.map((doc) {
+        final docData = doc.data() as Map<String, dynamic>;
+        return {...docData, 'id': doc.id};
+      }).toList();
+
+      return {
+        'success': true,
+        'data': {'data': products},
+      };
+    } catch (e) {
+      print('[API] Error fetching wishlist: $e');
+      return {'success': false, 'message': 'Failed to fetch wishlist: $e'};
+    }
+  }
+
+  /// Check if product is in user's wishlist
+  static Future<bool> isInWishlist(String productId) async {
+    try {
+      final userId = AuthService.currentUserId;
+      if (userId == null) {
+        return false;
+      }
+
+      final userDoc = await _firestore
+          .collection(FirebaseConfig.usersCollection)
+          .doc(userId)
+          .get();
+
+      if (!userDoc.exists) {
+        return false;
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final wishlist = List<String>.from(userData['wishlist'] ?? []);
+
+      return wishlist.contains(productId);
+    } catch (e) {
+      print('[API] Error checking wishlist: $e');
+      return false;
+    }
+  }
+
   // ============= Helper Methods =============
 
   /// Helper method to extract token from response (for backward compatibility)

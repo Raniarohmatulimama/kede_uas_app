@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../models/product_model.dart';
+import '../services/api_service.dart';
+import '../config/api_config.dart';
 
 class WishlistPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -11,37 +14,92 @@ class WishlistPage extends StatefulWidget {
 }
 
 class _WishlistPageState extends State<WishlistPage> {
-  // Sample wishlist items
-  final List<Map<String, dynamic>> wishlistItems = [
-    {'name': 'Avocado', 'price': '\$6.7', 'image': 'assets/images/avocado.png'},
-    {'name': 'Brocoli', 'price': '\$8.7', 'image': 'assets/images/brocoli.png'},
-    {
-      'name': 'Tomatoes',
-      'price': '\$4.9',
-      'image': 'assets/images/tomatoes.png',
-    },
-    {'name': 'Grapes', 'price': '\$7.2', 'image': 'assets/images/grapes.png'},
-    {
-      'name': 'Avocado',
-      'price': '\$6.7',
-      'image': 'assets/images/avocado1.jpg',
-    },
-    {'name': 'Brocoli', 'price': '\$8.7', 'image': 'assets/images/brocoli.png'},
-  ];
+  List<Product> wishlistItems = [];
+  bool isLoading = true;
+  String? errorMessage;
 
-  void _removeFromWishlist(int index) {
+  @override
+  void initState() {
+    super.initState();
+    _loadWishlist();
+  }
+
+  Future<void> _loadWishlist() async {
     setState(() {
-      wishlistItems.removeAt(index);
+      isLoading = true;
+      errorMessage = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Removed from wishlist'),
-        duration: const Duration(seconds: 2),
-        backgroundColor: Colors.grey.shade800,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+
+    try {
+      final result = await ApiService.getWishlist();
+
+      if (result['success'] == true && mounted) {
+        final data = result['data'];
+        if (data != null && data['data'] is List) {
+          final products = (data['data'] as List)
+              .map((json) => Product.fromJson(json as Map<String, dynamic>))
+              .toList();
+
+          setState(() {
+            wishlistItems = products;
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            wishlistItems = [];
+            isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          errorMessage = result['message'] ?? 'Failed to load wishlist';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('[Wishlist] Error loading wishlist: $e');
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Error: $e';
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _removeFromWishlist(Product product) async {
+    // Remove from state immediately for better UX
+    setState(() {
+      wishlistItems.removeWhere((item) => item.id == product.id);
+    });
+
+    // Remove from database
+    final result = await ApiService.removeFromWishlist(product.id);
+
+    if (!result['success']) {
+      // Revert on error
+      setState(() {
+        wishlistItems.add(product);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to remove: ${result['message']}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Removed from wishlist'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.grey.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -73,16 +131,10 @@ class _WishlistPageState extends State<WishlistPage> {
                     size: 20,
                   ),
                   onPressed: () {
-                    // Prefer the provided callback, but fallback to popping the
-                    // current route so the back button always works.
                     if (widget.onBackToHome != null) {
-                      // add debug print to help trace behavior
-                      // ignore: avoid_print
                       print('Wishlist: onBackToHome callback invoked');
                       widget.onBackToHome!();
                     } else {
-                      // fallback: pop this route
-                      // ignore: avoid_print
                       print('Wishlist: no callback, popping route');
                       Navigator.of(context).pop();
                     }
@@ -101,12 +153,46 @@ class _WishlistPageState extends State<WishlistPage> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(width: 48), // Balance the back button
+              const SizedBox(width: 48),
             ],
           ),
           centerTitle: true,
         ),
-        body: wishlistItems.isEmpty
+        body: isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF4CB32B)),
+              )
+            : errorMessage != null
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      errorMessage!,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadWishlist,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CB32B),
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            : wishlistItems.isEmpty
             ? _buildEmptyWishlist()
             : Padding(
                 padding: const EdgeInsets.all(20.0),
@@ -119,13 +205,8 @@ class _WishlistPageState extends State<WishlistPage> {
                   ),
                   itemCount: wishlistItems.length,
                   itemBuilder: (context, index) {
-                    final item = wishlistItems[index];
-                    return _buildWishlistCard(
-                      item['name'] as String,
-                      item['price'] as String,
-                      item['image'] as String,
-                      index,
-                    );
+                    final product = wishlistItems[index];
+                    return _buildWishlistCard(product);
                   },
                 ),
               ),
@@ -133,12 +214,7 @@ class _WishlistPageState extends State<WishlistPage> {
     );
   }
 
-  Widget _buildWishlistCard(
-    String name,
-    String price,
-    String imagePath,
-    int index,
-  ) {
+  Widget _buildWishlistCard(Product product) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
@@ -157,23 +233,36 @@ class _WishlistPageState extends State<WishlistPage> {
           // Image
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: Image.asset(
-              imagePath,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              errorBuilder: (context, error, stackTrace) => Container(
-                color: Colors.grey.shade200,
-                child: Icon(Icons.image, size: 50, color: Colors.grey.shade400),
-              ),
-            ),
+            child: product.imageUrl != null
+                ? Image.network(
+                    ApiConfig.assetUrl(product.imageUrl!),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      color: Colors.grey.shade200,
+                      child: Icon(
+                        Icons.image,
+                        size: 50,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  )
+                : Container(
+                    color: Colors.grey.shade200,
+                    child: Icon(
+                      Icons.image,
+                      size: 50,
+                      color: Colors.grey.shade400,
+                    ),
+                  ),
           ),
           // Favorite Icon (filled heart)
           Positioned(
             top: 8,
             left: 8,
             child: GestureDetector(
-              onTap: () => _removeFromWishlist(index),
+              onTap: () => _removeFromWishlist(product),
               child: Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).cardColor,
@@ -211,16 +300,18 @@ class _WishlistPageState extends State<WishlistPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    name,
+                    product.name,
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : Colors.black,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    price,
+                    'Rp ${product.price.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,

@@ -11,6 +11,8 @@ import '../detail_page.dart';
 import '../user/user_page.dart';
 import '../notifications_page.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
+import '../models/product_model.dart';
 import '../providers/user_provider.dart';
 import 'categories_page.dart';
 import 'add_product_page.dart';
@@ -26,6 +28,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   String? _photoPath;
+  int _lastIndexBeforeWishlist = 0;
 
   late final List<Widget> _pages;
 
@@ -43,7 +46,13 @@ class _HomePageState extends State<HomePage> {
         },
       ),
       const ShoppingCartPage(),
-      const WishlistPage(),
+      WishlistPage(
+        onBackToHome: () {
+          setState(() {
+            _selectedIndex = _lastIndexBeforeWishlist;
+          });
+        },
+      ),
       const ProfilePage(),
     ];
   }
@@ -99,6 +108,10 @@ class _HomePageState extends State<HomePage> {
     final isSelected = _selectedIndex == index;
     return InkWell(
       onTap: () {
+        if (index == 3) {
+          // Navigating to Wishlist: remember where we came from
+          _lastIndexBeforeWishlist = _selectedIndex;
+        }
         setState(() {
           _selectedIndex = index;
         });
@@ -118,6 +131,9 @@ class _HomePageState extends State<HomePage> {
     final isSelected = _selectedIndex == index;
     return InkWell(
       onTap: () {
+        if (index == 3) {
+          _lastIndexBeforeWishlist = _selectedIndex;
+        }
         setState(() {
           _selectedIndex = index;
         });
@@ -224,6 +240,9 @@ class HomeContent extends StatefulWidget {
 
 class _HomeContentState extends State<HomeContent> {
   final Set<String> _favorites = {'Avocado'};
+  List<Product> trendingProducts = [];
+  bool isLoadingTrending = true;
+  String? errorMessage;
 
   @override
   void initState() {
@@ -231,7 +250,62 @@ class _HomeContentState extends State<HomeContent> {
     // Load user data when HomeContent is initialized
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<UserProvider>(context, listen: false).loadUserData();
+      _loadTrendingProducts();
     });
+  }
+
+  Future<void> _loadTrendingProducts() async {
+    try {
+      setState(() {
+        isLoadingTrending = true;
+        errorMessage = null;
+      });
+
+      final result = await ApiService.getProducts();
+
+      if (result['success'] == true && mounted) {
+        final data = result['data'];
+        if (data != null && data['data'] is List) {
+          final allProducts = (data['data'] as List)
+              .map((json) => Product.fromJson(json as Map<String, dynamic>))
+              .toList();
+
+          // Sort by price (lowest first) and take 4 products
+          allProducts.sort((a, b) => a.price.compareTo(b.price));
+          final trending = allProducts.take(4).toList();
+
+          if (mounted) {
+            setState(() {
+              trendingProducts = trending;
+              isLoadingTrending = false;
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              trendingProducts = [];
+              isLoadingTrending = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            errorMessage =
+                result['message'] ?? 'Failed to load trending products';
+            isLoadingTrending = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('[HomePage] Error loading trending products: $e');
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Error: $e';
+          isLoadingTrending = false;
+        });
+      }
+    }
   }
 
   @override
@@ -305,7 +379,7 @@ class _HomeContentState extends State<HomeContent> {
 
               // Banner Slider
               SizedBox(
-                height: 160,
+                height: 200,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: 4,
@@ -329,7 +403,7 @@ class _HomeContentState extends State<HomeContent> {
                       },
                     ];
                     return Container(
-                      width: 300,
+                      width: 330,
                       margin: const EdgeInsets.only(right: 16),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
@@ -357,16 +431,28 @@ class _HomeContentState extends State<HomeContent> {
                                   ),
                             ),
                           ),
+                          // Dark overlay
+                          Positioned.fill(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                color: Colors.black.withOpacity(0.35),
+                              ),
+                            ),
+                          ),
                           Positioned(
-                            left: 16,
-                            bottom: 16,
+                            left: 20,
+                            bottom: 20,
+                            right: 16,
                             child: Text(
                               banners[index]['text']!,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 18,
+                                fontSize: 26,
                                 fontWeight: FontWeight.bold,
+                                height: 1.3,
                               ),
+                              maxLines: 3,
                             ),
                           ),
                         ],
@@ -504,44 +590,78 @@ class _HomeContentState extends State<HomeContent> {
               // Product Grid (2-column GridView to match mockup)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
-                child: GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.75,
-                  children: [
-                    _buildProductCard(
-                      context,
-                      'Avocado',
-                      '\$6.7',
-                      'assets/images/avocado.png',
-                      true,
-                    ),
-                    _buildProductCard(
-                      context,
-                      'Broccoli',
-                      '\$8.7',
-                      'assets/images/brocoli.png',
-                      false,
-                    ),
-                    _buildProductCard(
-                      context,
-                      'Tomatoes',
-                      '\$4.9',
-                      'assets/images/tomatoes.png',
-                      false,
-                    ),
-                    _buildProductCard(
-                      context,
-                      'Grapes',
-                      '\$7.2',
-                      'assets/images/grapes.png',
-                      false,
-                    ),
-                  ],
-                ),
+                child: isLoadingTrending
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF4CB32B),
+                        ),
+                      )
+                    : errorMessage != null
+                    ? Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              errorMessage!,
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 0.75,
+                        children: trendingProducts.isNotEmpty
+                            ? trendingProducts
+                                  .map(
+                                    (product) =>
+                                        _TrendingProductCard(product: product),
+                                  )
+                                  .toList()
+                            : [
+                                // Fallback if no products
+                                _buildProductCard(
+                                  context,
+                                  'Avocado',
+                                  '\$6.7',
+                                  'assets/images/avocado.png',
+                                  true,
+                                ),
+                                _buildProductCard(
+                                  context,
+                                  'Broccoli',
+                                  '\$8.7',
+                                  'assets/images/brocoli.png',
+                                  false,
+                                ),
+                                _buildProductCard(
+                                  context,
+                                  'Tomatoes',
+                                  '\$4.9',
+                                  'assets/images/tomatoes.png',
+                                  false,
+                                ),
+                                _buildProductCard(
+                                  context,
+                                  'Grapes',
+                                  '\$7.2',
+                                  'assets/images/grapes.png',
+                                  false,
+                                ),
+                              ],
+                      ),
               ),
               const SizedBox(height: 24),
 
@@ -740,6 +860,333 @@ class _HomeContentState extends State<HomeContent> {
                     const SizedBox(height: 2),
                     Text(
                       price,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDynamicProductCard(BuildContext context, Product product) {
+    // Check if product is in favorites
+    final isFav = _favorites.contains(product.name);
+
+    return GestureDetector(
+      onTap: () {
+        // Navigate to product detail page when the product card is tapped.
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProductDetailPage()),
+        );
+      },
+      child: Container(
+        height: 240,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Stack(
+          children: [
+            // Image from Network
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: product.imageUrl != null
+                  ? Image.network(
+                      ApiConfig.assetUrl(product.imageUrl!),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade300,
+                        child: Icon(
+                          Icons.image,
+                          size: 50,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.grey.shade300,
+                      child: Icon(
+                        Icons.image,
+                        size: 50,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+            ),
+            // Favorite Icon
+            Positioned(
+              top: 8,
+              left: 8,
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (_favorites.contains(product.name)) {
+                      _favorites.remove(product.name);
+                    } else {
+                      _favorites.add(product.name);
+                    }
+                  });
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[800]
+                        : Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(
+                    isFav ? Icons.favorite : Icons.favorite_border,
+                    color: isFav ? Colors.red : Colors.grey,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+            // Name and Price at bottom
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(16),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.6)],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      product.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '\$${product.price.toStringAsFixed(1)}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Dedicated stateful card for Trending Deals with Wishlist integration
+}
+
+class _TrendingProductCard extends StatefulWidget {
+  final Product product;
+
+  const _TrendingProductCard({Key? key, required this.product})
+    : super(key: key);
+
+  @override
+  State<_TrendingProductCard> createState() => _TrendingProductCardState();
+}
+
+class _TrendingProductCardState extends State<_TrendingProductCard> {
+  bool isFavorite = false;
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initFavorite();
+  }
+
+  Future<void> _initFavorite() async {
+    final inWishlist = await ApiService.isInWishlist(widget.product.id);
+    if (mounted) {
+      setState(() {
+        isFavorite = inWishlist;
+      });
+    }
+  }
+
+  Future<void> _toggleWishlist() async {
+    if (isLoading) return;
+    setState(() {
+      isLoading = true;
+    });
+
+    final result = isFavorite
+        ? await ApiService.removeFromWishlist(widget.product.id)
+        : await ApiService.addToWishlist(widget.product.id);
+
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = false;
+    });
+
+    if (result['success'] == true) {
+      setState(() {
+        isFavorite = !isFavorite;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isFavorite
+                ? '${widget.product.name} added to wishlist'
+                : '${widget.product.name} removed from wishlist',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: isFavorite ? Colors.green : Colors.red,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${result['message'] ?? 'Action failed'}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProductDetailPage()),
+        );
+      },
+      child: Container(
+        height: 240,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Stack(
+          children: [
+            // Image from Network
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: widget.product.imageUrl != null
+                  ? Image.network(
+                      ApiConfig.assetUrl(widget.product.imageUrl!),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade300,
+                        child: Icon(
+                          Icons.image,
+                          size: 50,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.grey.shade300,
+                      child: Icon(
+                        Icons.image,
+                        size: 50,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+            ),
+            // Favorite Icon
+            Positioned(
+              top: 8,
+              left: 8,
+              child: GestureDetector(
+                onTap: _toggleWishlist,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[800]
+                        : Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(6),
+                  child: isLoading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isFavorite ? Colors.red : Colors.grey,
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          color: isFavorite ? Colors.red : Colors.grey,
+                          size: 20,
+                        ),
+                ),
+              ),
+            ),
+            // Name and Price at bottom
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(16),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.6)],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.product.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '\$${widget.product.price.toStringAsFixed(1)}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
