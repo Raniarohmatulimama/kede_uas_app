@@ -73,26 +73,6 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
     }
   }
 
-  Future<void> _handleStep2() async {
-    // In Firebase, user will click the reset link in email to set new password
-    // This step just confirms the user has reset their password
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Password reset email has been sent. Please check your email and follow the link to reset your password.',
-          ),
-          backgroundColor: Colors.blue,
-        ),
-      );
-
-      // Navigate back to Sign In
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const SignInScreen()),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -201,7 +181,6 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
                         ),
 
                         const SizedBox(height: 24),
-
                         // Submit Button - Step 1
                         SizedBox(
                           width: double.infinity,
@@ -225,7 +204,7 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
                                     ),
                                   )
                                 : const Text(
-                                    'SEND RESET EMAIL',
+                                    'SEND RESET PASSWORD',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
