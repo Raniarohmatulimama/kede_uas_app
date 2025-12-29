@@ -12,8 +12,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class CategoriesPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
+  final VoidCallback? onGoToCart;
 
-  const CategoriesPage({Key? key, this.onBackToHome}) : super(key: key);
+  const CategoriesPage({Key? key, this.onBackToHome, this.onGoToCart})
+    : super(key: key);
 
   @override
   State<CategoriesPage> createState() => _CategoriesPageState();
@@ -141,6 +143,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     builder: (context) => AllProductsPage(
                       categoryName: category['name'] as String?,
                       categoryIcon: category['icon'] as String?,
+                      onGoToCart: widget.onGoToCart,
                     ),
                   ),
                 );
@@ -284,9 +287,14 @@ class CategoryDetailPage extends StatelessWidget {
 class AllProductsPage extends StatefulWidget {
   final String? categoryName;
   final String? categoryIcon;
+  final VoidCallback? onGoToCart;
 
-  const AllProductsPage({Key? key, this.categoryName, this.categoryIcon})
-    : super(key: key);
+  const AllProductsPage({
+    Key? key,
+    this.categoryName,
+    this.categoryIcon,
+    this.onGoToCart,
+  }) : super(key: key);
 
   @override
   State<AllProductsPage> createState() => _AllProductsPageState();
@@ -1022,7 +1030,11 @@ class _AllProductsPageState extends State<AllProductsPage> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) =>
-                                                  const ProductDetailPage(),
+                                                  ProductDetailPage(
+                                                    product: product,
+                                                    onGoToCart:
+                                                        widget.onGoToCart,
+                                                  ),
                                             ),
                                           );
                                         },
@@ -1056,12 +1068,14 @@ class _ProductCard extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final VoidCallback? onMorePressed;
+  final VoidCallback? onGoToCart;
 
   const _ProductCard({
     required this.product,
     required this.onTap,
     required this.onLongPress,
     this.onMorePressed,
+    this.onGoToCart,
   });
 
   @override

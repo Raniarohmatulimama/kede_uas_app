@@ -6,6 +6,57 @@ import 'cloudinary_service.dart';
 import '../config/firebase_config.dart';
 
 class ApiService {
+  /// Add product to user's cart in Firestore
+  static Future<Map<String, dynamic>> addToCart({
+    required String productId,
+    required String name,
+    required String category,
+    required double price,
+    required int quantity,
+    required String image,
+  }) async {
+    try {
+      final userId = AuthService.currentUserId;
+      if (userId == null) {
+        return {'success': false, 'message': 'User not authenticated'};
+      }
+
+      final userRef = _firestore
+          .collection(FirebaseConfig.usersCollection)
+          .doc(userId);
+      final userDoc = await userRef.get();
+      if (!userDoc.exists) {
+        return {'success': false, 'message': 'User not found'};
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final cart = List<Map<String, dynamic>>.from(userData['cart'] ?? []);
+
+      // Check if product already in cart
+      final index = cart.indexWhere((item) => item['id'] == productId);
+      if (index >= 0) {
+        // If already in cart, just update quantity
+        cart[index]['quantity'] = (cart[index]['quantity'] ?? 1) + quantity;
+      } else {
+        // Add new item
+        cart.add({
+          'id': productId,
+          'name': name,
+          'category': category,
+          'price': price,
+          'quantity': quantity,
+          'image': image,
+        });
+      }
+
+      await userRef.update({'cart': cart});
+      return {'success': true, 'message': 'Product added to cart'};
+    } catch (e) {
+      print('[API] Error adding to cart: $e');
+      return {'success': false, 'message': 'Failed to add to cart: $e'};
+    }
+  }
+
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseStorage _storage = FirebaseStorage.instance;
 
@@ -574,6 +625,33 @@ class ApiService {
   }
 
   // ============= Helper Methods =============
+
+  /// Get user's wishlist IDs only
+  static Future<Map<String, dynamic>> getUserWishlist() async {
+    try {
+      final userId = AuthService.currentUserId;
+      if (userId == null) {
+        return {'success': false, 'message': 'User not authenticated'};
+      }
+
+      final userDoc = await _firestore
+          .collection(FirebaseConfig.usersCollection)
+          .doc(userId)
+          .get();
+
+      if (!userDoc.exists) {
+        return {'success': false, 'message': 'User not found'};
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final wishlist = List<String>.from(userData['wishlist'] ?? []);
+
+      return {'success': true, 'wishlist': wishlist};
+    } catch (e) {
+      print('[API] Error getting user wishlist: $e');
+      return {'success': false, 'message': 'Failed to get wishlist: $e'};
+    }
+  }
 
   /// Helper method to extract token from response (for backward compatibility)
   static String? extractToken(dynamic data) {

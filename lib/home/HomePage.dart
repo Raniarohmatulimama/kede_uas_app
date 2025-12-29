@@ -18,34 +18,43 @@ import 'categories_page.dart';
 import 'add_product_page.dart';
 
 // HomePage
+
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  final int selectedIndex;
+  const HomePage({Key? key, this.selectedIndex = 0}) : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
   String? _photoPath;
   int _lastIndexBeforeWishlist = 0;
 
   late final List<Widget> _pages;
+  void goToCartTab() {
+    setState(() {
+      _selectedIndex = 2;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.selectedIndex;
     _loadPhoto();
     _pages = [
-      const HomeContent(),
+      HomeContent(onGoToCart: goToCartTab),
       CategoriesPage(
         onBackToHome: () {
           setState(() {
             _selectedIndex = 0; // Go back to Home tab
           });
         },
+        onGoToCart: goToCartTab,
       ),
-      const ShoppingCartPage(),
+      const ShoppingCartPage(showBottomNavBar: false),
       WishlistPage(
         onBackToHome: () {
           setState(() {
@@ -233,7 +242,8 @@ class _HomePageState extends State<HomePage> {
 
 // HomeContent
 class HomeContent extends StatefulWidget {
-  const HomeContent({Key? key}) : super(key: key);
+  final VoidCallback? onGoToCart;
+  const HomeContent({Key? key, this.onGoToCart}) : super(key: key);
   @override
   State<HomeContent> createState() => _HomeContentState();
 }
@@ -634,31 +644,51 @@ class _HomeContentState extends State<HomeContent> {
                                 // Fallback if no products
                                 _buildProductCard(
                                   context,
-                                  'Avocado',
-                                  '\$6.7',
-                                  'assets/images/avocado.png',
-                                  true,
+                                  Product(
+                                    id: 'avocado',
+                                    name: 'Avocado',
+                                    category: 'FRUITS',
+                                    description: 'Fresh avocado',
+                                    price: 6.7,
+                                    imageUrl: 'assets/images/avocado.png',
+                                    stock: 10,
+                                  ),
                                 ),
                                 _buildProductCard(
                                   context,
-                                  'Broccoli',
-                                  '\$8.7',
-                                  'assets/images/brocoli.png',
-                                  false,
+                                  Product(
+                                    id: 'broccoli',
+                                    name: 'Broccoli',
+                                    category: 'VEGETABLES',
+                                    description: 'Fresh broccoli',
+                                    price: 8.7,
+                                    imageUrl: 'assets/images/brocoli.png',
+                                    stock: 10,
+                                  ),
                                 ),
                                 _buildProductCard(
                                   context,
-                                  'Tomatoes',
-                                  '\$4.9',
-                                  'assets/images/tomatoes.png',
-                                  false,
+                                  Product(
+                                    id: 'tomatoes',
+                                    name: 'Tomatoes',
+                                    category: 'VEGETABLES',
+                                    description: 'Fresh tomatoes',
+                                    price: 4.9,
+                                    imageUrl: 'assets/images/tomatoes.png',
+                                    stock: 10,
+                                  ),
                                 ),
                                 _buildProductCard(
                                   context,
-                                  'Grapes',
-                                  '\$7.2',
-                                  'assets/images/grapes.png',
-                                  false,
+                                  Product(
+                                    id: 'grapes',
+                                    name: 'Grapes',
+                                    category: 'FRUITS',
+                                    description: 'Fresh grapes',
+                                    price: 7.2,
+                                    imageUrl: 'assets/images/grapes.png',
+                                    stock: 10,
+                                  ),
                                 ),
                               ],
                       ),
@@ -753,22 +783,20 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  Widget _buildProductCard(
-    BuildContext context,
-    String name,
-    String price,
-    String imagePath,
-    bool isFavorite,
-  ) {
-    // Determine favorite state from local _favorites set (home-specific).
-    final bool fav = _favorites.contains(name);
+  Widget _buildProductCard(BuildContext context, Product product) {
+    final isFav = _favorites.contains(product.name);
 
     return GestureDetector(
       onTap: () {
         // Navigate to product detail page when the product card is tapped.
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const ProductDetailPage()),
+          MaterialPageRoute(
+            builder: (context) => ProductDetailPage(
+              product: product,
+              onGoToCart: widget.onGoToCart,
+            ),
+          ),
         );
       },
       child: Container(
@@ -782,20 +810,29 @@ class _HomeContentState extends State<HomeContent> {
             // Image
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey.shade300,
-                  child: Icon(
-                    Icons.image,
-                    size: 50,
-                    color: Colors.grey.shade400,
-                  ),
-                ),
-              ),
+              child: product.imageUrl != null
+                  ? Image.network(
+                      product.imageUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade300,
+                        child: Icon(
+                          Icons.image,
+                          size: 50,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.grey.shade300,
+                      child: Icon(
+                        Icons.image,
+                        size: 50,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
             ),
             // Favorite Icon
             Positioned(
@@ -805,10 +842,10 @@ class _HomeContentState extends State<HomeContent> {
                 onTap: () {
                   // allow tapping the heart to also toggle
                   setState(() {
-                    if (_favorites.contains(name)) {
-                      _favorites.remove(name);
+                    if (_favorites.contains(product.name)) {
+                      _favorites.remove(product.name);
                     } else {
-                      _favorites.add(name);
+                      _favorites.add(product.name);
                     }
                   });
                 },
@@ -821,8 +858,8 @@ class _HomeContentState extends State<HomeContent> {
                   ),
                   padding: const EdgeInsets.all(6),
                   child: Icon(
-                    fav ? Icons.favorite : Icons.favorite_border,
-                    color: fav ? Colors.red : Colors.grey,
+                    isFav ? Icons.favorite : Icons.favorite_border,
+                    color: isFav ? Colors.red : Colors.grey,
                     size: 20,
                   ),
                 ),
@@ -850,7 +887,7 @@ class _HomeContentState extends State<HomeContent> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      name,
+                      product.name,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -859,7 +896,7 @@ class _HomeContentState extends State<HomeContent> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      price,
+                      '\$${product.price.toStringAsFixed(1)}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -885,7 +922,12 @@ class _HomeContentState extends State<HomeContent> {
         // Navigate to product detail page when the product card is tapped.
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const ProductDetailPage()),
+          MaterialPageRoute(
+            builder: (context) => ProductDetailPage(
+              product: product,
+              onGoToCart: widget.onGoToCart,
+            ),
+          ),
         );
       },
       child: Container(
@@ -1009,7 +1051,8 @@ class _HomeContentState extends State<HomeContent> {
 class _TrendingProductCard extends StatefulWidget {
   final Product product;
 
-  const _TrendingProductCard({Key? key, required this.product})
+  final VoidCallback? onGoToCart;
+  const _TrendingProductCard({Key? key, required this.product, this.onGoToCart})
     : super(key: key);
 
   @override
@@ -1082,7 +1125,12 @@ class _TrendingProductCardState extends State<_TrendingProductCard> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const ProductDetailPage()),
+          MaterialPageRoute(
+            builder: (context) => ProductDetailPage(
+              product: widget.product,
+              onGoToCart: widget.onGoToCart,
+            ),
+          ),
         );
       },
       child: Container(
