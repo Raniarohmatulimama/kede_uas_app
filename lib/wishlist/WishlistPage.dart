@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/product_model.dart';
 import '../services/api_service.dart';
 import '../config/api_config.dart';
+import '../detail_page.dart';
 
 class WishlistPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -216,30 +217,49 @@ class _WishlistPageState extends State<WishlistPage> {
 
   Widget _buildWishlistCard(Product product) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductDetailPage(product: product),
           ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: product.imageUrl != null
-                ? Image.network(
-                    ApiConfig.assetUrl(product.imageUrl!),
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                    errorBuilder: (context, error, stackTrace) => Container(
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: product.imageUrl != null
+                  ? Image.network(
+                      ApiConfig.assetUrl(product.imageUrl!),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade200,
+                        child: Icon(
+                          Icons.image,
+                          size: 50,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    )
+                  : Container(
                       color: Colors.grey.shade200,
                       child: Icon(
                         Icons.image,
@@ -247,82 +267,78 @@ class _WishlistPageState extends State<WishlistPage> {
                         color: Colors.grey.shade400,
                       ),
                     ),
-                  )
-                : Container(
-                    color: Colors.grey.shade200,
-                    child: Icon(
-                      Icons.image,
-                      size: 50,
-                      color: Colors.grey.shade400,
-                    ),
+            ),
+            // Favorite Icon (filled heart)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: GestureDetector(
+                onTap: () => _removeFromWishlist(product),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    shape: BoxShape.circle,
                   ),
-          ),
-          // Favorite Icon (filled heart)
-          Positioned(
-            top: 8,
-            left: 8,
-            child: GestureDetector(
-              onTap: () => _removeFromWishlist(product),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  shape: BoxShape.circle,
+                  padding: const EdgeInsets.all(6),
+                  child: const Icon(
+                    Icons.favorite,
+                    color: Colors.red,
+                    size: 20,
+                  ),
                 ),
-                padding: const EdgeInsets.all(6),
-                child: const Icon(Icons.favorite, color: Colors.red, size: 20),
               ),
             ),
-          ),
-          // Name and Price at bottom
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(16),
+            // Name and Price at bottom
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(16),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      isDark
+                          ? Colors.black.withOpacity(0.7)
+                          : Colors.white.withOpacity(0.7),
+                    ],
+                  ),
                 ),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    isDark
-                        ? Colors.black.withOpacity(0.7)
-                        : Colors.white.withOpacity(0.7),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      product.name,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Rp ${product.price.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    product.name,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Rp ${product.price.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black,
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

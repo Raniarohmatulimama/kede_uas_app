@@ -1,56 +1,96 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../CheckoutPage.dart';
+import '../services/auth_service.dart';
+import '../home/HomePage.dart';
 
 class ShoppingCartPage extends StatefulWidget {
-  const ShoppingCartPage({Key? key}) : super(key: key);
+  final List<CartItem> initialItems;
+  final bool showBottomNavBar;
+
+  const ShoppingCartPage({
+    Key? key,
+    this.initialItems = const [],
+    this.showBottomNavBar = true,
+  }) : super(key: key);
 
   @override
   State<ShoppingCartPage> createState() => _ShoppingCartPageState();
 }
 
 class _ShoppingCartPageState extends State<ShoppingCartPage> {
-  List<CartItem> cartItems = [
-    CartItem(
-      id: '1',
-      name: 'Banana',
-      category: 'FRUITS',
-      price: 7.2,
-      quantity: 4,
-      image: 'assets/images/avocado1.jpg',
-    ),
-    CartItem(
-      id: '2',
-      name: 'Broccoli',
-      category: 'VEGETABLES',
-      price: 6.3,
-      quantity: 1,
-      image: 'assets/images/brocoli.png',
-    ),
-    CartItem(
-      id: '3',
-      name: 'Grapes',
-      category: 'FRUITS',
-      price: 5.7,
-      quantity: 2,
-      image: 'assets/images/tomatoes.png',
-    ),
-    CartItem(
-      id: '4',
-      name: 'Oyster Mushroom',
-      category: 'VEGETABLES',
-      price: 2.7,
-      quantity: 1,
-      image: 'assets/images/grapes.png',
-    ),
-    CartItem(
-      id: '5',
-      name: 'Orange',
-      category: 'FRUITS',
-      price: 5.2,
-      quantity: 1,
-      image: 'assets/images/orange.jpg',
-    ),
-  ];
+  late List<CartItem> cartItems;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    cartItems = List<CartItem>.from(widget.initialItems);
+    // Jika initialItems kosong, load dari Firestore
+    if (cartItems.isEmpty) {
+      _loadCartFromFirestore();
+    } else {
+      _saveCartToFirestore();
+    }
+  }
+
+  Future<void> _loadCartFromFirestore() async {
+    final userId = AuthService.currentUserId;
+    if (userId == null) return;
+
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final cartList = userData['cart'] as List<dynamic>? ?? [];
+
+        if (mounted) {
+          setState(() {
+            cartItems = cartList
+                .map(
+                  (item) => CartItem(
+                    id: item['id'] ?? '',
+                    name: item['name'] ?? '',
+                    category: item['category'] ?? '',
+                    price: (item['price'] as num?)?.toDouble() ?? 0.0,
+                    quantity: item['quantity'] ?? 1,
+                    image: item['image'] ?? '',
+                  ),
+                )
+                .toList();
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading cart from Firestore: $e');
+    }
+  }
+
+  Future<void> _saveCartToFirestore() async {
+    final userId = AuthService.currentUserId;
+    if (userId == null) return;
+
+    try {
+      final cartData = cartItems
+          .map(
+            (item) => {
+              'id': item.id,
+              'name': item.name,
+              'category': item.category,
+              'price': item.price,
+              'quantity': item.quantity,
+              'image': item.image,
+            },
+          )
+          .toList();
+
+      await _firestore.collection('users').doc(userId).update({
+        'cart': cartData,
+      });
+    } catch (e) {
+      print('Error saving cart to Firestore: $e');
+    }
+  }
 
   void updateQuantity(String id, int change) {
     setState(() {
@@ -58,12 +98,14 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
       item.quantity += change;
       if (item.quantity < 0) item.quantity = 0;
     });
+    _saveCartToFirestore();
   }
 
   void removeItem(String id) {
     setState(() {
       cartItems.removeWhere((item) => item.id == id);
     });
+    _saveCartToFirestore();
   }
 
   double get subtotal =>
@@ -80,14 +122,12 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         title: Padding(
-          padding: const EdgeInsets.only(
-            left: 13,
-          ), // Match cart items left padding
+          padding: const EdgeInsets.only(left: 13),
           child: Text(
             'Shopping Cart',
             style: TextStyle(
               color: isDark ? Colors.white : Colors.black,
-              fontSize: 24, // Increased font size for "Shopping Cart"
+              fontSize: 24,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -130,17 +170,11 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: Colors.grey.shade200,
-            height: 1.0,
-          ), // Softer grey color
+          child: Container(color: Colors.grey.shade200, height: 1.0),
         ),
       ),
       body: ListView.builder(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 24,
-          vertical: 16,
-        ), // Increased horizontal padding
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         itemCount: cartItems.length,
         itemBuilder: (context, index) {
           final item = cartItems[index];
@@ -170,6 +204,75 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
             ),
           );
         },
+      ),
+      // Cegah double bottom nav: hanya render jika showBottomNavBar true
+      bottomNavigationBar: widget.showBottomNavBar
+          ? Container(
+              height: 70,
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildNavItem(context, Icons.home, 0),
+                  _buildNavItem(context, Icons.compare_arrows, 1),
+                  _buildNavItemWithBadge(context, Icons.shopping_cart, 2),
+                  _buildNavItem(context, Icons.favorite, 3),
+                  _buildNavItem(context, Icons.person, 4),
+                ],
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildNavItem(BuildContext context, IconData icon, int index) {
+    final isSelected = index == 2; // 2 = Cart
+    return InkWell(
+      onTap: () {
+        // Navigasi ke HomePage dan buka tab sesuai index
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => HomePage(selectedIndex: index)),
+          (route) => false,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        child: Icon(
+          icon,
+          color: isSelected ? const Color(0xFF4CB32B) : Colors.grey.shade400,
+          size: 28,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItemWithBadge(
+    BuildContext context,
+    IconData icon,
+    int index,
+  ) {
+    final isSelected = index == 2;
+    // TODO: Tambahkan badge jika ingin menampilkan jumlah item di cart
+    return InkWell(
+      onTap: () {
+        // Stay on Cart
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        child: Icon(
+          icon,
+          color: isSelected ? const Color(0xFF4CB32B) : Colors.grey.shade400,
+          size: 28,
+        ),
       ),
     );
   }
@@ -226,17 +329,29 @@ class CartItemWidget extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(
-                    item.image,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.image_not_supported,
-                        color: Colors.grey.shade400,
-                        size: 50, // Increased icon size
-                      );
-                    },
-                  ),
+                  child: item.image.startsWith('http')
+                      ? Image.network(
+                          item.image,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.image_not_supported,
+                              color: Colors.grey.shade400,
+                              size: 50,
+                            );
+                          },
+                        )
+                      : Image.asset(
+                          item.image,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.image_not_supported,
+                              color: Colors.grey.shade400,
+                              size: 50,
+                            );
+                          },
+                        ),
                 ),
               ),
               Positioned(
