@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
@@ -148,43 +149,55 @@ class _MyProfilePageState extends State<MyProfilePage> {
       _photoPath = cachedPhoto;
     });
 
-    // Coba segarkan dari backend agar nomor telepon terbaru ikut terambil.
+    // Jika data cache kosong, ambil dari Firebase Auth current user
+    if (_email.isEmpty && AuthService.currentUser != null) {
+      setState(() {
+        _email = AuthService.currentUser!.email ?? '';
+      });
+    }
+
+    // Coba load dari Firestore jika Firebase Auth aktif
     try {
-      final profile = await ApiService.getProfile();
-      print('DEBUG Backend response: $profile');
-      final data = profile['data']?['data']?['user'] as Map<String, dynamic>?;
-      if (data != null) {
-        print(' DEBUG User data from backend: $data');
-        final firstName = (data['first_name'] ?? '') as String;
-        final lastName = (data['last_name'] ?? '') as String;
-        final email = (data['email'] ?? '') as String;
-        final phone = (data['phone'] ?? '') as String;
-        final photo = data['profile_photo_path'] ?? data['profile_photo_url'];
-        print('DEBUG Phone from backend: "$phone"');
+      final userId = AuthService.currentUserId;
+      if (userId != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get();
 
-        await AuthService.saveUserData(
-          firstName: firstName,
-          lastName: lastName,
-          email: email,
-        );
-        await AuthService.savePhone(phone);
-        if (photo is String && photo.isNotEmpty) {
-          await AuthService.savePhoto(photo);
-        }
+        if (userDoc.exists) {
+          final data = userDoc.data() as Map<String, dynamic>;
+          final firstName = (data['first_name'] ?? '') as String;
+          final lastName = (data['last_name'] ?? '') as String;
+          final email = (data['email'] ?? '') as String;
+          final phone = (data['phone'] ?? '') as String;
+          final photo = data['profile_photo_url'] ?? data['profile_photo'];
 
-        if (!mounted) return;
-        setState(() {
-          _firstName = firstName;
-          _lastName = lastName;
-          _email = email;
-          _phoneController.text = phone;
+          await AuthService.saveUserData(
+            firstName: firstName,
+            lastName: lastName,
+            email: email,
+          );
+          if (phone.isNotEmpty) await AuthService.savePhone(phone);
           if (photo is String && photo.isNotEmpty) {
-            _photoPath = photo;
+            await AuthService.savePhoto(photo);
           }
-        });
+
+          if (!mounted) return;
+          setState(() {
+            _firstName = firstName;
+            _lastName = lastName;
+            _email = email;
+            _phoneController.text = phone;
+            if (photo is String && photo.isNotEmpty) {
+              _photoPath = photo;
+            }
+          });
+        }
       }
-    } catch (_) {
-      // Abaikan error fetch; gunakan data cache saja.
+    } catch (e) {
+      print('[Profile] Error loading from Firestore: $e');
+      // Abaikan error, gunakan data cache
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -474,23 +487,38 @@ class _MyProfilePageState extends State<MyProfilePage> {
       return;
     }
 
-    final result = await AuthService.updatePhoneOnBackend(phone);
-    if (!mounted) return;
+    try {
+      // Save to Firestore directly
+      final userId = AuthService.currentUserId;
+      if (userId != null) {
+        await FirebaseFirestore.instance.collection('users').doc(userId).update(
+          {'phone': phone, 'updated_at': FieldValue.serverTimestamp()},
+        );
 
-    if (result['success'] == true) {
-      await AuthService.savePhone(phone);
-      await _loadUserData();
-      setState(() => _isEditingPhone = false);
+        await AuthService.savePhone(phone);
+        setState(() => _isEditingPhone = false);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Phone number updated'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User not authenticated'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result['message'] ?? 'Phone number updated'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Failed to update phone'),
+          content: Text('Failed to update phone: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -596,38 +624,49 @@ class _MyProfilePageState extends State<MyProfilePage> {
   }
 
   Widget _buildInfoRow(String label, String value, {VoidCallback? onEdit}) {
+    final displayValue = value.isEmpty ? '-' : value;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-          ),
           Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
+          ),
+          Flexible(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Flexible(
                   child: Text(
-                    value.isEmpty ? '-' : value,
+                    displayValue,
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       fontWeight: FontWeight.w400,
-                      color: value.isEmpty ? Colors.grey : Colors.black87,
+                      color: displayValue == '-' ? Colors.grey : Colors.black87,
                       fontSize: 15,
                     ),
                   ),
                 ),
                 if (onEdit != null) ...[
                   const SizedBox(width: 8),
-                  InkWell(
-                    onTap: onEdit,
-                    child: const Icon(
-                      Icons.edit,
-                      size: 18,
-                      color: Color(0xFF4CB32B),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onEdit,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: const Icon(
+                          Icons.edit,
+                          size: 20,
+                          color: Color(0xFF4CB32B),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -705,15 +744,15 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 GestureDetector(
                   onTap: _showPhotoOptions,
                   child: Container(
-                    width: 120,
-                    height: 120,
+                    width: 150,
+                    height: 150,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                       color: Colors.grey.shade200,
                     ),
                     child: _photoPath != null
                         ? ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(24),
                             child: _buildPhotoWidget(_photoPath!),
                           )
                         : Icon(
@@ -724,8 +763,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   ),
                 ),
                 Positioned(
-                  right: 0,
-                  bottom: 0,
+                  right: 4,
+                  bottom: 4,
                   child: GestureDetector(
                     onTap: _showPhotoOptions,
                     child: Container(
@@ -744,22 +783,23 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Text(
               '$_firstName $_lastName'.trim(),
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
-            Text(
-              _email.isNotEmpty ? _email : 'No email',
-              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            const SizedBox(height: 6),
+            const Text(
+              'User',
+              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Divider(color: Colors.grey.shade300, thickness: 1),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             _buildInfoRow('Full Name', '$_firstName $_lastName'.trim()),
-            _buildInfoRow('User Name', _firstName),
-            _buildInfoRow('Email Address', _email),
+            Divider(color: Colors.grey.shade200, height: 10),
+            _buildInfoRow('User Name', _firstName.isEmpty ? '-' : _firstName),
+            Divider(color: Colors.grey.shade200, height: 10),
             _isEditingPhone
                 ? Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12.0),
@@ -770,7 +810,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: const InputDecoration(
-                              hintText: 'Enter phone',
+                              labelText: 'Phone',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -788,6 +828,15 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     _phoneController.text,
                     onEdit: () => setState(() => _isEditingPhone = true),
                   ),
+            Divider(color: Colors.grey.shade200, height: 10),
+            _buildInfoRow(
+              'Email Address',
+              _email.isEmpty ? 'No email' : _email,
+            ),
+            Divider(color: Colors.grey.shade200, height: 10),
+            _buildInfoRow('Shipping Address', 'Not set'),
+            Divider(color: Colors.grey.shade200, height: 10),
+            _buildInfoRow('Total Order', '0'),
             const SizedBox(height: 80),
           ],
         ),

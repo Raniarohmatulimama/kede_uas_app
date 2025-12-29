@@ -282,8 +282,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         height: 56,
         child: ElevatedButton(
           onPressed: () async {
-            // Clear any existing session before entering as guest
-            await AuthService.clearToken();
+            // Force sign out so we always enter as guest
+            await AuthService.signOut();
 
             // Go directly to HomePage as guest (not logged in)
             if (mounted) {

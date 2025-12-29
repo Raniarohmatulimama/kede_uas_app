@@ -344,7 +344,7 @@ class _HomeContentState extends State<HomeContent> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            isLoggedIn ? fullName : 'pengguna',
+                            isLoggedIn ? fullName : 'User',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
