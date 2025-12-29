@@ -236,6 +236,40 @@ class AuthService {
         password: password,
       );
 
+      // Get Firebase ID token and save it
+      final idToken = await userCredential.user?.getIdToken();
+      if (idToken != null) {
+        await saveToken(idToken);
+        print('[Auth] Firebase ID token saved');
+      }
+
+      // Load user data from Firestore and cache it
+      if (userCredential.user != null) {
+        final userDoc = await _firebaseFirestore
+            .collection(FirebaseConfig.usersCollection)
+            .doc(userCredential.user!.uid)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          await saveUserData(
+            firstName: userData['first_name'] ?? '',
+            lastName: userData['last_name'] ?? '',
+            email: userData['email'] ?? email,
+          );
+
+          // Save phone if exists
+          if (userData['phone'] != null) {
+            await savePhone(userData['phone']);
+          }
+
+          // Save photo if exists
+          if (userData['profile_photo_url'] != null) {
+            await savePhoto(userData['profile_photo_url']);
+          }
+        }
+      }
+
       print('[Auth] Sign in successful: ${userCredential.user?.email}');
       return {
         'success': true,
@@ -313,7 +347,7 @@ class AuthService {
           .collection(FirebaseConfig.usersCollection)
           .doc(user.uid)
           .update({
-            'profile_photo': photoUrl,
+            'profile_photo_url': photoUrl,
             'profile_photo_public_id':
                 publicId, // Simpan public_id untuk reference
             'updated_at': FieldValue.serverTimestamp(),
