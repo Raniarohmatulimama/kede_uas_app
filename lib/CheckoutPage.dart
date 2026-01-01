@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'PaymentPage.dart';
+import 'services/auth_service.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<Map<String, dynamic>> cartItems;
@@ -22,15 +23,31 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController(text: 'Samuel Witwicky');
-  final _emailController = TextEditingController(text: 'info@example.com');
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _zipCodeController = TextEditingController();
   final _cityController = TextEditingController();
   String _selectedCountry = 'USA';
   bool _saveAddress = false;
 
-  final List<String> _countries = ['USA', 'China', 'India'];
+  final List<String> _countries = ['USA', 'China', 'Malaysia', 'Indonesia'];
+  @override
+  void initState() {
+    super.initState();
+    _initializeUserData();
+  }
+
+  Future<void> _initializeUserData() async {
+    if (AuthService.currentUser != null) {
+      final fullName = await AuthService.getFullName();
+      final email = await AuthService.getEmail();
+      setState(() {
+        _nameController.text = fullName;
+        _emailController.text = email ?? '';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -42,7 +59,29 @@ class _CheckoutPageState extends State<CheckoutPage> {
     super.dispose();
   }
 
-  void _proceedToPayment() {
+  void _proceedToPayment() async {
+    if (AuthService.currentUser == null) {
+      // Show warning and redirect to login
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text(
+            'Anda harus login terlebih dahulu untuk melanjutkan checkout.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushNamed('/login');
+              },
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     if (_formKey.currentState!.validate()) {
       Navigator.push(
         context,
