@@ -145,7 +145,10 @@ class _ProfilePageDetailState extends State<ProfilePageDetail> {
                     'Email Address',
                     userProvider.email.isNotEmpty ? userProvider.email : 'N/A',
                   ),
-                  _buildInfoRow('Total Order', '0'),
+                  _buildInfoRow(
+                    'Total Order',
+                    userProvider.totalOrder.toString(),
+                  ),
 
                   const SizedBox(height: 120),
                 ],

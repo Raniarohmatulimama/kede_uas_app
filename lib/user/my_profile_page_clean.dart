@@ -10,7 +10,10 @@ import '../home/HomePage.dart';
 import '../home/categories_page.dart';
 import '../shopping_cart/shopping.cart.dart';
 import '../wishlist/WishlistPage.dart';
+
 import '../sign_in/sign_in_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/user_provider.dart';
 
 class MyProfilePage extends StatefulWidget {
   const MyProfilePage({Key? key}) : super(key: key);
@@ -698,150 +701,170 @@ class _MyProfilePageState extends State<MyProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
+    return Consumer<UserProvider>(
+      builder: (context, userProvider, child) {
+        if (userProvider.isLoading) {
+          return Scaffold(
+            backgroundColor: Colors.white,
+            appBar: AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              centerTitle: true,
+              title: const Text(
+                'My Profile',
+                style: TextStyle(color: Colors.black87),
+              ),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+            bottomNavigationBar: _buildBottomNav(context),
+          );
+        }
+        return Scaffold(
           backgroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: true,
-          title: const Text(
-            'My Profile',
-            style: TextStyle(color: Colors.black87),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            centerTitle: true,
+            title: const Text(
+              'My Profile',
+              style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black87),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: _buildBottomNav(context),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'My Profile',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Stack(
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                GestureDetector(
-                  onTap: _showPhotoOptions,
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      color: Colors.grey.shade200,
+                Stack(
+                  children: [
+                    GestureDetector(
+                      onTap: _showPhotoOptions,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          color: Colors.grey.shade200,
+                        ),
+                        child: userProvider.photoPath != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(24),
+                                child: _buildPhotoWidget(
+                                  userProvider.photoPath!,
+                                ),
+                              )
+                            : Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Colors.grey.shade400,
+                              ),
+                      ),
                     ),
-                    child: _photoPath != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
-                            child: _buildPhotoWidget(_photoPath!),
-                          )
-                        : Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Colors.grey.shade400,
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: GestureDetector(
+                        onTap: _showPhotoOptions,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF4CB32B),
+                            shape: BoxShape.circle,
                           ),
-                  ),
-                ),
-                Positioned(
-                  right: 4,
-                  bottom: 4,
-                  child: GestureDetector(
-                    onTap: _showPhotoOptions,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4CB32B),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        size: 20,
-                        color: Colors.white,
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  userProvider.fullName,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                const SizedBox(height: 6),
+                const Text(
+                  'User',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Divider(color: Colors.grey.shade300, thickness: 1),
+                const SizedBox(height: 4),
+                _buildInfoRow('Full Name', userProvider.fullName),
+                Divider(color: Colors.grey.shade200, height: 10),
+                _buildInfoRow(
+                  'User Name',
+                  userProvider.firstName.isEmpty ? '-' : userProvider.firstName,
+                ),
+                Divider(color: Colors.grey.shade200, height: 10),
+                _isEditingPhone
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                decoration: const InputDecoration(
+                                  labelText: 'Phone',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: _savePhone,
+                              child: const Text('Save'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _buildInfoRow(
+                        'Phone',
+                        userProvider.phone,
+                        onEdit: () => setState(() => _isEditingPhone = true),
+                      ),
+                Divider(color: Colors.grey.shade200, height: 10),
+                _buildInfoRow(
+                  'Email Address',
+                  userProvider.email.isEmpty ? 'No email' : userProvider.email,
+                ),
+                Divider(color: Colors.grey.shade200, height: 10),
+                _buildInfoRow('Shipping Address', 'Not set'),
+                Divider(color: Colors.grey.shade200, height: 10),
+                _buildInfoRow(
+                  'Total Order',
+                  userProvider.totalOrder.toString(),
+                ),
+                const SizedBox(height: 80),
               ],
             ),
-            const SizedBox(height: 14),
-            Text(
-              '$_firstName $_lastName'.trim(),
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'User',
-              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 20),
-            Divider(color: Colors.grey.shade300, thickness: 1),
-            const SizedBox(height: 4),
-            _buildInfoRow('Full Name', '$_firstName $_lastName'.trim()),
-            Divider(color: Colors.grey.shade200, height: 10),
-            _buildInfoRow('User Name', _firstName.isEmpty ? '-' : _firstName),
-            Divider(color: Colors.grey.shade200, height: 10),
-            _isEditingPhone
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            decoration: const InputDecoration(
-                              labelText: 'Phone',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: _savePhone,
-                          child: const Text('Save'),
-                        ),
-                      ],
-                    ),
-                  )
-                : _buildInfoRow(
-                    'Phone',
-                    _phoneController.text,
-                    onEdit: () => setState(() => _isEditingPhone = true),
-                  ),
-            Divider(color: Colors.grey.shade200, height: 10),
-            _buildInfoRow(
-              'Email Address',
-              _email.isEmpty ? 'No email' : _email,
-            ),
-            Divider(color: Colors.grey.shade200, height: 10),
-            _buildInfoRow('Shipping Address', 'Not set'),
-            Divider(color: Colors.grey.shade200, height: 10),
-            _buildInfoRow('Total Order', '0'),
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNav(context),
+          ),
+          bottomNavigationBar: _buildBottomNav(context),
+        );
+      },
     );
   }
 
