@@ -1,3 +1,6 @@
+// Import shared_preferences
+// ...existing code...
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -43,11 +46,38 @@ class _PaymentPageState extends State<PaymentPage> {
   final _functions = FirebaseFunctions.instance;
   final _auth = FirebaseAuth.instance;
   String? _orderId;
+
+  // Restored fields for address and country
+  final TextEditingController _fullAddressController = TextEditingController();
+  bool _saveShippingAddress = false;
+  final List<String> countries = [
+    'Choose your country',
+    'USA',
+    'China',
+    'Indonesia',
+    'India',
+  ];
+  String selectedCountry = 'Indonesia';
   @override
   void initState() {
     super.initState();
     _generateCashOptions();
     _loadSavedCards();
+    _loadSavedAddress();
+    // Optionally, restore selectedCountry from saved address if needed
+  }
+
+  Future<void> _loadSavedAddress() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final savedAddress = prefs.getString('shipping_address_${user.uid}');
+    if (savedAddress != null && savedAddress.isNotEmpty) {
+      setState(() {
+        _fullAddressController.text = savedAddress;
+        _saveShippingAddress = true;
+      });
+    }
   }
 
   Future<void> _loadSavedCards() async {
@@ -153,22 +183,17 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   void dispose() {
+    _fullAddressController.dispose();
     super.dispose();
   }
 
   void _showAddCardDialog() {
+    // ...existing code...
     final nameController = TextEditingController();
     final numberController = TextEditingController();
     final expiryController = TextEditingController();
     final cvvController = TextEditingController();
-    String selectedCountry = 'Choose your country';
-    const countries = [
-      'Choose your country',
-      'USA',
-      'China',
-      'Indonesia',
-      'India',
-    ];
+    // ...existing code...
 
     showDialog(
       context: context,
@@ -627,6 +652,15 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
 
+    // Simpan alamat lengkap jika checkbox dicentang
+    if (_saveShippingAddress && _fullAddressController.text.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'shipping_address_${user.uid}',
+        _fullAddressController.text,
+      );
+    }
+
     if (_selectedPaymentTab == 'Credit Card' && _savedCards.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -785,6 +819,8 @@ class _PaymentPageState extends State<PaymentPage> {
                     // Payment Method Tabs
                     _buildPaymentTabs(),
                     const SizedBox(height: 24),
+
+                    // ...existing code...
 
                     // Card Display or COD Info
                     if (_selectedPaymentTab == 'Credit Card') ...[

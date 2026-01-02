@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'PaymentPage.dart';
 import 'services/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<Map<String, dynamic>> cartItems;
@@ -30,12 +31,41 @@ class _CheckoutPageState extends State<CheckoutPage> {
   final _cityController = TextEditingController();
   String _selectedCountry = 'USA';
   bool _saveAddress = false;
+  final TextEditingController _addressController = TextEditingController();
 
   final List<String> _countries = ['USA', 'China', 'Malaysia', 'Indonesia'];
   @override
   void initState() {
     super.initState();
     _initializeUserData();
+    _loadSavedAddress();
+  }
+
+  Future<void> _loadSavedAddress() async {
+    final user = AuthService.currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final phone = prefs.getString('shipping_phone_${user.uid}');
+    final zip = prefs.getString('shipping_zip_${user.uid}');
+    final city = prefs.getString('shipping_city_${user.uid}');
+    final country = prefs.getString('shipping_country_${user.uid}');
+    final address = prefs.getString('shipping_address_${user.uid}');
+    if ([
+      phone,
+      zip,
+      city,
+      country,
+      address,
+    ].any((v) => v != null && v.isNotEmpty)) {
+      setState(() {
+        if (phone != null) _phoneController.text = phone;
+        if (zip != null) _zipCodeController.text = zip;
+        if (city != null) _cityController.text = city;
+        if (country != null) _selectedCountry = country;
+        if (address != null) _addressController.text = address;
+        _saveAddress = true;
+      });
+    }
   }
 
   Future<void> _initializeUserData() async {
@@ -83,6 +113,33 @@ class _CheckoutPageState extends State<CheckoutPage> {
       return;
     }
     if (_formKey.currentState!.validate()) {
+      // Save all shipping address fields if checkbox is checked
+      if (_saveAddress) {
+        final user = AuthService.currentUser;
+        if (user != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(
+            'shipping_phone_${user.uid}',
+            _phoneController.text,
+          );
+          await prefs.setString(
+            'shipping_zip_${user.uid}',
+            _zipCodeController.text,
+          );
+          await prefs.setString(
+            'shipping_city_${user.uid}',
+            _cityController.text,
+          );
+          await prefs.setString(
+            'shipping_country_${user.uid}',
+            _selectedCountry,
+          );
+          await prefs.setString(
+            'shipping_address_${user.uid}',
+            _addressController.text,
+          );
+        }
+      }
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -223,6 +280,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       ),
                       const SizedBox(height: 16),
                       _buildCountryDropdown(),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        controller: _addressController,
+                        label: 'Address',
+                        hintText: 'Enter your full address',
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'required';
+                          }
+                          return null;
+                        },
+                      ),
                       const SizedBox(height: 16),
                       _buildSaveAddressCheckbox(),
                       const SizedBox(height: 24),
