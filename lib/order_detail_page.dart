@@ -2,10 +2,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'rating_page_integration.dart';
+import 'ReviewPage.dart';
 
-class OrderDetailPage extends StatelessWidget {
+class OrderDetailPage extends StatefulWidget {
   final String orderId;
-  const OrderDetailPage({super.key, required this.orderId});
+  final bool fromNotification;
+
+  const OrderDetailPage({
+    Key? key,
+    required this.orderId,
+    this.fromNotification = false,
+  }) : super(key: key);
+
+  @override
+  State<OrderDetailPage> createState() => _OrderDetailPageState();
+}
+
+class _OrderDetailPageState extends State<OrderDetailPage> {
+  bool _statusUpdated = false;
 
   Color _getStatusColor(String status) {
     switch (status) {
@@ -39,8 +53,6 @@ class OrderDetailPage extends StatelessWidget {
 
   IconData _getStatusIcon(String status) {
     switch (status) {
-      case 'paid':
-        return Icons.check_circle;
       case 'processing':
         return Icons.hourglass_bottom;
       case 'shipped':
@@ -54,7 +66,9 @@ class OrderDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final docRef = FirebaseFirestore.instance.collection('orders').doc(orderId);
+    final docRef = FirebaseFirestore.instance
+        .collection('orders')
+        .doc(widget.orderId);
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -100,6 +114,22 @@ class OrderDetailPage extends StatelessWidget {
           final paymentMethod = (data['paymentMethod'] ?? '-').toString();
           final totalPrice = (data['totalPrice'] ?? 0).toDouble();
           final canComplete = status == 'shipped';
+          final showTerimaButton =
+              widget.fromNotification && status == 'shipped';
+
+          // Update status ke 'shipped' jika dari notifikasi dan status belum shipped/completed
+          if (widget.fromNotification &&
+              !_statusUpdated &&
+              status != 'shipped' &&
+              status != 'completed') {
+            _statusUpdated = true;
+            Future.microtask(() async {
+              await docRef.update({
+                'orderStatus': 'shipped',
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+            });
+          }
 
           return SingleChildScrollView(
             child: Padding(
@@ -139,7 +169,7 @@ class OrderDetailPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          orderId,
+                          widget.orderId,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -409,13 +439,12 @@ class OrderDetailPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // Pesanan Selesai Button (only show if shipped)
-                  if (canComplete) ...[
+                  // Tombol "Pesanan telah diterima" jika dari notifikasi dan status shipped
+                  if (showTerimaButton) ...[
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () async {
-                          // Show loading
                           showDialog(
                             context: context,
                             barrierDismissible: false,
@@ -423,23 +452,18 @@ class OrderDetailPage extends StatelessWidget {
                               child: CircularProgressIndicator(),
                             ),
                           );
-
                           try {
-                            // Update order status to completed
                             await docRef.update({
                               'orderStatus': 'completed',
                               'updatedAt': FieldValue.serverTimestamp(),
                             });
-
                             if (context.mounted) {
                               Navigator.pop(context); // Close loading dialog
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => RatingPageIntegration(
-                                    orderId: orderId,
-                                    items: items,
-                                  ),
+                                  builder: (_) =>
+                                      ReviewPage(orderDetails: data),
                                 ),
                               );
                             }
@@ -448,7 +472,69 @@ class OrderDetailPage extends StatelessWidget {
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Error: ${e.toString()}'),
+                                  content: Text('Error: \'${e.toString()}\''),
+                                  backgroundColor: Colors.red.shade400,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4CB32B),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Pesanan telah diterima',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else if (canComplete) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                          try {
+                            await docRef.update({
+                              'orderStatus': 'completed',
+                              'updatedAt': FieldValue.serverTimestamp(),
+                            });
+                            if (context.mounted) {
+                              Navigator.pop(context); // Close loading dialog
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ReviewPage(orderDetails: data),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: \'${e.toString()}\''),
                                   backgroundColor: Colors.red.shade400,
                                   behavior: SnackBarBehavior.floating,
                                   shape: RoundedRectangleBorder(
