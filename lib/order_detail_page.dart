@@ -459,11 +459,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             });
                             if (context.mounted) {
                               Navigator.pop(context); // Close loading dialog
+                              // Add orderId to data before passing to ReviewPage
+                              final orderData = Map<String, dynamic>.from(data);
+                              orderData['orderId'] = widget.orderId;
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      ReviewPage(orderDetails: data),
+                                      ReviewPage(orderDetails: orderData),
                                 ),
                               );
                             }
@@ -521,11 +524,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             });
                             if (context.mounted) {
                               Navigator.pop(context); // Close loading dialog
+                              // Add orderId to data before passing to ReviewPage
+                              final orderData = Map<String, dynamic>.from(data);
+                              orderData['orderId'] = widget.orderId;
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      ReviewPage(orderDetails: data),
+                                      ReviewPage(orderDetails: orderData),
                                 ),
                               );
                             }
