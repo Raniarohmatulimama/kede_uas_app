@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'order_detail_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'services/auth_service.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -8,43 +11,11 @@ class NotificationsPage extends StatefulWidget {
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
-  final List<Map<String, dynamic>> notifications = [
-    {
-      'title': 'Apply Success',
-      'message': 'You has apply an job in Queenify Group as UI Designer',
-      'time': '10h ago',
-      'isRead': false,
-      'hasIndicator': true,
-      'indicatorColor': Color(0xFF00BCD4),
-    },
-    {
-      'title': 'Interview Calls',
-      'message': 'Congratulations! You have interview calls',
-      'time': '9h ago',
-      'isRead': false,
-      'hasIndicator': false,
-    },
-    {
-      'title': 'Apply Success',
-      'message': 'You has apply an job in Queenify Group as UI Designer',
-      'time': '8h ago',
-      'isRead': false,
-      'hasIndicator': true,
-      'indicatorColor': Color(0xFF4CB32B),
-    },
-    {
-      'title': 'Complete your profile',
-      'message':
-          'Please verify your profile information to continue using this app',
-      'time': '4h ago',
-      'isRead': false,
-      'hasIndicator': true,
-      'indicatorColor': Color(0xFF00BCD4),
-    },
-  ];
+  // Tidak perlu orderId dummy, ambil dari Firestore
 
   @override
   Widget build(BuildContext context) {
+    final userId = AuthService.currentUserId;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
@@ -71,106 +42,145 @@ class _NotificationsPageState extends State<NotificationsPage> {
         ),
         centerTitle: true,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: notifications.length,
-        itemBuilder: (context, index) {
-          final notification = notifications[index];
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    if (notification['hasIndicator'] == true)
-                      Container(
-                        width: 10,
-                        height: 10,
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: notification['indicatorColor'],
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    Expanded(
-                      child: Text(
-                        notification['title'],
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
+      body: userId == null
+          ? Center(
+              child: Text(
+                'Belum ada notifikasi pesanan.',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              ),
+            )
+          : StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('orders')
+                  .where('userId', isEqualTo: userId)
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Belum ada notifikasi pesanan.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade600,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  notification['message'],
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 16,
-                          color: Colors.grey.shade500,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          notification['time'],
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade500,
+                  );
+                }
+                final orders = snapshot.data!.docs;
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: orders.length,
+                  itemBuilder: (context, index) {
+                    final order = orders[index];
+                    final orderId = order.id;
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => OrderDetailPage(
+                              orderId: orderId,
+                              fromNotification: true,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.withOpacity(0.10),
+                              blurRadius: 14,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: const Color(0xFF4CB32B),
+                            width: 1.2,
                           ),
                         ),
-                      ],
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          notifications[index]['isRead'] = true;
-                        });
-                      },
-                      child: Text(
-                        'Mark as read',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: notification['isRead']
-                              ? Colors.grey.shade400
-                              : const Color(0xFF4CB32B),
-                          fontWeight: FontWeight.w600,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(right: 14, top: 2),
+                              child: const Icon(
+                                Icons.delivery_dining,
+                                color: Color(0xFF4CB32B),
+                                size: 32,
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Pesanan akan segera diantar!',
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF4CB32B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    'Terima kasih telah berbelanja. Klik untuk melihat detail pesanan dan konfirmasi penerimaan.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.access_time,
+                                        size: 16,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        order['createdAt'] != null &&
+                                                order['createdAt'] is Timestamp
+                                            ? _formatTimeAgo(
+                                                order['createdAt'].toDate(),
+                                              )
+                                            : '',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    );
+                  },
+                );
+              },
             ),
-          );
-        },
-      ),
     );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final diff = now.difference(dateTime);
+    if (diff.inMinutes < 1) return 'Baru saja';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} menit lalu';
+    if (diff.inHours < 24) return '${diff.inHours} jam lalu';
+    return '${diff.inDays} hari lalu';
   }
 }
