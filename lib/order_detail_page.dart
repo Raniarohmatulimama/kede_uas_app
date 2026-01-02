@@ -73,6 +73,19 @@ class OrderDetailPage extends StatelessWidget {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/home',
+                (route) => false,
+              );
+            },
+            tooltip: 'Close and go to Home',
+          ),
+        ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: docRef.snapshots(),
