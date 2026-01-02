@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home/HomePage.dart';
 import 'rating_service.dart';
+import 'package:provider/provider.dart';
+import 'providers/user_provider.dart';
 
 class ReviewPage extends StatefulWidget {
   final Map<String, dynamic> orderDetails;
@@ -93,6 +95,10 @@ class _ReviewPageState extends State<ReviewPage> {
       }
 
       if (mounted) {
+        // Tambahkan: increment totalOrder user setelah review sukses
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        await userProvider.incrementTotalOrder();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$successCount produk berhasil diberi rating!'),

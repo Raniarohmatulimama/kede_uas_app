@@ -10,6 +10,7 @@ class UserProvider extends ChangeNotifier {
   String _phone = '';
   String? _photoPath;
   bool _isLoading = true;
+  int _totalOrder = 0;
 
   String get firstName => _firstName;
   String get lastName => _lastName;
@@ -17,6 +18,7 @@ class UserProvider extends ChangeNotifier {
   String get phone => _phone;
   String? get photoPath => _photoPath;
   bool get isLoading => _isLoading;
+  int get totalOrder => _totalOrder;
 
   String get fullName {
     final name = '$_firstName $_lastName'.trim();
@@ -70,6 +72,7 @@ class UserProvider extends ChangeNotifier {
         final phone = data['phone'] ?? '';
         final photoPath =
             data['profile_photo_path'] ?? data['profile_photo_url'];
+        final totalOrder = data['totalOrder'] ?? 0;
 
         // Update local storage
         await AuthService.saveUserData(
@@ -92,11 +95,28 @@ class UserProvider extends ChangeNotifier {
         _email = email;
         _phone = phone;
         _photoPath = photoPath;
+        _totalOrder = totalOrder is int ? totalOrder : 0;
         notifyListeners();
       }
     } catch (e) {
       print('[UserProvider] Error refreshing from Firebase: $e');
       // Abaikan error, gunakan data cache
+    }
+  }
+
+  // Tambahkan fungsi untuk increment totalOrder
+  Future<void> incrementTotalOrder() async {
+    final currentUser = AuthService.currentUser;
+    if (currentUser == null) return;
+    final userRef = FirebaseFirestore.instance
+        .collection(FirebaseConfig.usersCollection)
+        .doc(currentUser.uid);
+    try {
+      await userRef.update({'totalOrder': FieldValue.increment(1)});
+      _totalOrder += 1;
+      notifyListeners();
+    } catch (e) {
+      print('[UserProvider] Error incrementing totalOrder: $e');
     }
   }
 
@@ -107,12 +127,14 @@ class UserProvider extends ChangeNotifier {
     String? email,
     String? phone,
     String? photoPath,
+    int? totalOrder,
   }) {
     if (firstName != null) _firstName = firstName;
     if (lastName != null) _lastName = lastName;
     if (email != null) _email = email;
     if (phone != null) _phone = phone;
     if (photoPath != null) _photoPath = photoPath;
+    if (totalOrder != null) _totalOrder = totalOrder;
     notifyListeners();
   }
 
