@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home/HomePage.dart';
+import 'rating_service.dart';
 
 class ReviewPage extends StatefulWidget {
   final Map<String, dynamic> orderDetails;
@@ -13,6 +15,8 @@ class ReviewPage extends StatefulWidget {
 class _ReviewPageState extends State<ReviewPage> {
   int _rating = 3; // Default rating 3.0
   final _reviewController = TextEditingController();
+  bool _isSubmitting = false;
+  final _ratingService = RatingService();
 
   @override
   void dispose() {
@@ -20,12 +24,107 @@ class _ReviewPageState extends State<ReviewPage> {
     super.dispose();
   }
 
-  void _submitReview() {
-    // Navigate to home page
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const HomePage()),
-      (route) => false,
+  Future<void> _submitReview() async {
+    // Get ALL products from order
+    final items = (widget.orderDetails['items'] as List<dynamic>?) ?? [];
+
+    print('DEBUG ReviewPage: orderDetails keys = ${widget.orderDetails.keys}');
+    print('DEBUG ReviewPage: orderDetails = ${widget.orderDetails}');
+    print('DEBUG ReviewPage: items = $items');
+
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak ada produk untuk diberi rating'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Try multiple possible keys for orderId
+    final orderId =
+        widget.orderDetails['orderId'] ??
+        widget.orderDetails['id'] ??
+        widget.orderDetails['documentId'] ??
+        widget.orderDetails['_id'] ??
+        DateTime.now().millisecondsSinceEpoch.toString();
+
+    print(
+      'DEBUG ReviewPage: Submitting review for ${items.length} products - orderId: $orderId, rating: $_rating',
     );
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Submit rating & review untuk SEMUA produk dalam order
+      int successCount = 0;
+      for (final item in items) {
+        final product = item as Map<String, dynamic>;
+        final productId = product['productId'] ?? product['id'];
+
+        print('DEBUG ReviewPage: Processing item = $product');
+        print('DEBUG ReviewPage: productId = $productId');
+
+        if (productId == null) {
+          print('DEBUG ReviewPage: SKIP - productId is null');
+          continue;
+        }
+
+        try {
+          await _ratingService.submitRating(
+            orderId: orderId,
+            productId: productId,
+            rating: _rating,
+            comment: _reviewController.text.isEmpty
+                ? null
+                : _reviewController.text,
+          );
+          successCount++;
+          print(
+            'DEBUG ReviewPage: Successfully submitted rating for productId: $productId',
+          );
+        } catch (itemError) {
+          print(
+            'DEBUG ReviewPage: Error submitting rating for productId $productId: $itemError',
+          );
+          // Continue dengan produk berikutnya jika ada error
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$successCount produk berhasil diberi rating!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate back to home after successful submission
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const HomePage()),
+              (route) => false,
+            );
+          }
+        });
+      }
+    } catch (e) {
+      print('ERROR ReviewPage: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -183,7 +282,7 @@ class _ReviewPageState extends State<ReviewPage> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _submitReview,
+                  onPressed: _isSubmitting ? null : _submitReview,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4CB32B),
                     foregroundColor: Colors.white,
@@ -193,14 +292,25 @@ class _ReviewPageState extends State<ReviewPage> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'SUBMIT REVIEW',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Text(
+                          'SUBMIT REVIEW',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                 ),
               ),
             ),

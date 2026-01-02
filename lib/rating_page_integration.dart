@@ -25,28 +25,69 @@ class _RatingPageIntegrationState extends State<RatingPageIntegration> {
     try {
       final can = await service.canSubmit(widget.orderId);
       if (!can) throw Exception('Order not completed');
+
+      int successCount = 0;
       for (final item in widget.items) {
         final m = item as Map<String, dynamic>;
         final pid = m['productId'] ?? m['id'];
         final r = ratings[pid];
-        if (r == null) continue;
-        await service.submitRating(
-          orderId: widget.orderId,
-          productId: pid,
-          rating: r,
-          comment: comments[pid],
+
+        print(
+          'DEBUG: Processing item - productId: $pid, rating: $r, item keys: ${m.keys}',
         );
+
+        if (r == null) {
+          print('DEBUG: Skipping item $pid - no rating provided');
+          continue;
+        }
+
+        try {
+          await service.submitRating(
+            orderId: widget.orderId,
+            productId: pid,
+            rating: r,
+            comment: comments[pid],
+          );
+          successCount++;
+          print('DEBUG: Successfully submitted rating for productId: $pid');
+        } catch (itemError) {
+          print(
+            'DEBUG: Error submitting rating for productId $pid: $itemError',
+          );
+          if (itemError.toString().contains('already rated')) {
+            successCount++;
+          } else {
+            rethrow;
+          }
+        }
       }
+
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Ratings submitted')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$successCount produk berhasil diberi rating!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate back to home after successful submission
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/home', (route) => false);
+          }
+        });
       }
     } catch (e) {
+      print('DEBUG: Submit error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _submitting = false);

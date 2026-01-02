@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'config/api_config.dart';
 import 'shopping_cart/shopping.cart.dart';
 import 'services/auth_service.dart';
@@ -84,6 +85,94 @@ class _ProductDetailPageState extends State<ProductDetailPage>
         );
     productReviews = widget.reviews ?? [];
     _checkIfInWishlist();
+    _loadReviewsFromFirestore();
+  }
+
+  Future<void> _loadReviewsFromFirestore() async {
+    try {
+      print('DEBUG: Loading reviews for productId: ${product.id}');
+      final db = FirebaseFirestore.instance;
+
+      // Query tanpa orderBy untuk avoid index requirement
+      final querySnapshot = await db
+          .collection('ratings')
+          .where('productId', isEqualTo: product.id)
+          .get();
+
+      print('DEBUG: Found ${querySnapshot.docs.length} reviews');
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final reviews = <Review>[];
+        for (var doc in querySnapshot.docs) {
+          final data = doc.data();
+          print('DEBUG: Review data: $data');
+
+          final createdAt = data['createdAt'] as Timestamp?;
+          final formattedDate = createdAt != null
+              ? _formatDate(createdAt.toDate())
+              : 'Unknown date';
+
+          final avatarUrl =
+              data['userAvatar'] ?? 'assets/images/default_avatar.png';
+          print('DEBUG: Avatar URL for ${data['displayName']}: $avatarUrl');
+          print(
+            'DEBUG: Avatar starts with http: ${avatarUrl.startsWith('http')}',
+          );
+
+          reviews.add(
+            Review(
+              name: data['displayName'] ?? 'Anonymous',
+              date: formattedDate,
+              comment: data['comment'] ?? 'No comment',
+              rating: (data['rating'] ?? 0).toDouble(),
+              avatar: avatarUrl,
+            ),
+          );
+        }
+
+        if (mounted) {
+          setState(() {
+            productReviews = reviews;
+          });
+          print(
+            'DEBUG: Updated productReviews count: ${productReviews.length}',
+          );
+        }
+      } else {
+        print('DEBUG: No reviews found, clearing productReviews');
+        if (mounted) {
+          setState(() {
+            productReviews = [];
+          });
+        }
+      }
+    } catch (e) {
+      print('ERROR loading reviews: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading reviews: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      if (difference.inHours < 1) {
+        return 'Just now';
+      }
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 
   Future<void> _checkIfInWishlist() async {
@@ -588,88 +677,168 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                               Center(
                                 child: Padding(
                                   padding: const EdgeInsets.all(24.0),
-                                  child: Text(
-                                    'Belum ada review',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[600],
-                                    ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.rate_review_outlined,
+                                        size: 48,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Belum ada review',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Jadilah yang pertama memberikan review',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[500],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               )
                             else
-                              ListView.separated(
-                                padding: const EdgeInsets.all(24.0),
-                                itemCount: productReviews.length,
-                                separatorBuilder: (context, index) =>
-                                    const SizedBox(height: 20),
-                                itemBuilder: (context, index) {
-                                  final review = productReviews[index];
-                                  return Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 25,
-                                        backgroundImage: NetworkImage(
-                                          ApiConfig.assetUrl(review.avatar),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
+                              Stack(
+                                children: [
+                                  ListView.separated(
+                                    padding: const EdgeInsets.all(24.0),
+                                    itemCount: productReviews.length,
+                                    separatorBuilder: (context, index) =>
+                                        const SizedBox(height: 20),
+                                    itemBuilder: (context, index) {
+                                      final review = productReviews[index];
+                                      print(
+                                        'DEBUG: Rendering avatar for ${review.name} - URL: ${review.avatar}',
+                                      );
+                                      return Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 25,
+                                            backgroundColor: Colors.grey[200],
+                                            backgroundImage:
+                                                review.avatar.startsWith('http')
+                                                ? NetworkImage(review.avatar)
+                                                : null,
+                                            child:
+                                                review.avatar.startsWith('http')
+                                                ? null
+                                                : Text(
+                                                    review.name[0]
+                                                        .toUpperCase(),
+                                                    style: const TextStyle(
+                                                      fontSize: 20,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Color(0xFF4CB32B),
+                                                    ),
+                                                  ),
+                                            onBackgroundImageError:
+                                                review.avatar.startsWith('http')
+                                                ? (exception, stackTrace) {
+                                                    print(
+                                                      '❌ ERROR loading avatar for ${review.name}: $exception',
+                                                    );
+                                                    print(
+                                                      '❌ Avatar URL was: ${review.avatar}',
+                                                    );
+                                                    print(
+                                                      '❌ Stack trace: $stackTrace',
+                                                    );
+                                                  }
+                                                : null,
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceBetween,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        review.name,
+                                                        style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                    Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        for (
+                                                          int i = 0;
+                                                          i < 5;
+                                                          i++
+                                                        )
+                                                          Icon(
+                                                            Icons.star,
+                                                            size: 16,
+                                                            color:
+                                                                i <
+                                                                    review
+                                                                        .rating
+                                                                        .toInt()
+                                                                ? Colors.orange
+                                                                : Colors
+                                                                      .grey[300],
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
                                                 Text(
-                                                  review.name,
-                                                  style: const TextStyle(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.bold,
+                                                  review.date,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[500],
                                                   ),
                                                 ),
-                                                Row(
-                                                  children: [
-                                                    for (int i = 0; i < 5; i++)
-                                                      Icon(
-                                                        Icons.star,
-                                                        size: 16,
-                                                        color: i < review.rating
-                                                            ? Colors.orange
-                                                            : Colors.grey[300],
-                                                      ),
-                                                  ],
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  review.comment,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.grey[600],
+                                                    height: 1.5,
+                                                  ),
                                                 ),
                                               ],
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              review.date,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[500],
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              review.comment,
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey[600],
-                                                height: 1.5,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.refresh),
+                                      onPressed: _loadReviewsFromFirestore,
+                                      tooltip: 'Refresh reviews',
+                                    ),
+                                  ),
+                                ],
                               ),
                             // Discussion Tab
                             SingleChildScrollView(

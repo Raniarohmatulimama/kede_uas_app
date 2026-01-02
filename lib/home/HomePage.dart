@@ -104,7 +104,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   _buildNavItem(Icons.home, 0),
                   _buildNavItem(Icons.compare_arrows, 1),
-                  _buildNavItemWithBadge(Icons.shopping_cart, 2),
+                  _buildNavItem(Icons.shopping_cart, 2),
                   _buildNavItem(Icons.favorite, 3),
                   _buildProfileNavItem(4),
                 ],
