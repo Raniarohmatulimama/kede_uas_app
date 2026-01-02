@@ -1,6 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'ReviewPage.dart';
+import 'package:intl/intl.dart';
+import 'order_detail_page.dart';
 import 'services/auth_service.dart';
 
 class PaymentPage extends StatefulWidget {
@@ -35,10 +39,86 @@ class _PaymentPageState extends State<PaymentPage> {
   // Untuk pilihan uang tunai COD
   final List<double> _cashOptions = [];
   double? _selectedCash;
+  final NumberFormat _currencyFormatter = NumberFormat.simpleCurrency();
+  final _functions = FirebaseFunctions.instance;
+  final _auth = FirebaseAuth.instance;
+  String? _orderId;
   @override
   void initState() {
     super.initState();
     _generateCashOptions();
+    _loadSavedCards();
+  }
+
+  Future<void> _loadSavedCards() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('savedCards')
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _savedCards.clear();
+          for (var doc in snapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            _savedCards.add({
+              'cardHolderName': data['cardHolderName'],
+              'lastFourDigits': data['lastFourDigits'],
+              'expiryDate': data['expiryDate'],
+              'themeIndex': data['themeIndex'] ?? 0,
+              'country': data['country'],
+              'docId': doc.id,
+            });
+          }
+          if (_savedCards.isNotEmpty) {
+            _selectedCardIndex = 0;
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading cards: $e');
+    }
+  }
+
+  Future<void> _saveCardToFirebase({
+    required String cardHolderName,
+    required String lastFourDigits,
+    required String expiryDate,
+    required int themeIndex,
+    required String country,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Ensure user document exists
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'email': user.email,
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Then save card
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('savedCards')
+          .add({
+            'cardHolderName': cardHolderName,
+            'lastFourDigits': lastFourDigits,
+            'expiryDate': expiryDate,
+            'themeIndex': themeIndex,
+            'country': country,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+    } catch (e) {
+      print('Error saving card: $e');
+      rethrow;
+    }
   }
 
   void _generateCashOptions() {
@@ -59,125 +139,598 @@ class _PaymentPageState extends State<PaymentPage> {
 
   String _selectedPaymentTab = 'Credit Card';
   int _selectedCardIndex = 0;
-  bool isCardHolderPressed = false;
-  bool isCardNumberPressed = false;
-  bool isMonthYearPressed = false;
-  bool isCvvPressed = false;
-  bool isCountryPressed = false;
-  bool isCodAddressPressed = false;
 
-  final _cardHolderController = TextEditingController(text: 'Samuel Witwicky');
-  final _cardNumberController = TextEditingController();
-  final _monthYearController = TextEditingController();
-  final _cvvController = TextEditingController();
-  final _addressController = TextEditingController();
+  final List<Map<String, dynamic>> _savedCards = [];
 
-  String _selectedCountry = '';
-  bool _saveShippingAddress = false;
-  final List<String> _countries = [
-    'Choose your country',
-    'USA',
-    'China',
-    'India',
-  ];
-
-  final List<Map<String, dynamic>> _savedCards = [
-    {
-      'balance': '\$45,662',
-      'lastFourDigits': '1234',
-      'color': const Color(0xFF5B4E8A),
-      'pattern': 'purple',
-    },
-    {
-      'balance': '\$45,662',
-      'lastFourDigits': '1234',
-      'color': const Color(0xFF2B8C8C),
-      'pattern': 'teal',
-    },
-  ];
+  double get _totalAmount {
+    final itemsTotal = widget.cartItems.fold<double>(0, (sum, item) {
+      final price = (item['price'] ?? 0).toDouble();
+      final qty = (item['quantity'] ?? 1).toDouble();
+      return sum + price * qty;
+    });
+    return itemsTotal + widget.tax + widget.deliveryFee;
+  }
 
   @override
   void dispose() {
-    _cardHolderController.dispose();
-    _cardNumberController.dispose();
-    _monthYearController.dispose();
-    _cvvController.dispose();
     super.dispose();
   }
 
-  void _processPayment() async {
-    if (_selectedPaymentTab == 'Credit Card') {
-      final bool usingSavedCard =
-          _monthYearController.text.isEmpty && _cvvController.text.isEmpty;
-      if (!usingSavedCard) {
-        if (_cardHolderController.text.isEmpty ||
-            _cardNumberController.text.isEmpty ||
-            _monthYearController.text.isEmpty ||
-            _cvvController.text.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Please fill in all card details'),
-              backgroundColor: Colors.red.shade400,
-              behavior: SnackBarBehavior.floating,
+  void _showAddCardDialog() {
+    final nameController = TextEditingController();
+    final numberController = TextEditingController();
+    final expiryController = TextEditingController();
+    final cvvController = TextEditingController();
+    String selectedCountry = 'Choose your country';
+    const countries = [
+      'Choose your country',
+      'USA',
+      'China',
+      'Indonesia',
+      'India',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setInnerState) {
+            return Dialog(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(20),
               ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Add New Card',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.grey),
+                            onPressed: () => Navigator.pop(context),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      _buildDialogTextField(
+                        controller: nameController,
+                        label: 'Card Holder Name',
+                        hintText: 'Enter card holder name',
+                      ),
+                      const SizedBox(height: 16),
+                      _buildDialogTextField(
+                        controller: numberController,
+                        label: 'Card Number',
+                        hintText: '1234 5678 9012 3456',
+                        keyboardType: TextInputType.number,
+                        maxLength: 19,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildDialogTextField(
+                              controller: expiryController,
+                              label: 'Expiry Date',
+                              hintText: 'MM/YY',
+                              maxLength: 5,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildDialogTextField(
+                              controller: cvvController,
+                              label: 'CVV',
+                              hintText: '123',
+                              keyboardType: TextInputType.number,
+                              maxLength: 3,
+                              obscureText: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildDialogCountryDropdown(
+                        countries: countries,
+                        selected: selectedCountry,
+                        onChanged: (val) {
+                          setInnerState(() {
+                            selectedCountry = val;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (nameController.text.isEmpty ||
+                                numberController.text.isEmpty ||
+                                expiryController.text.isEmpty ||
+                                cvvController.text.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Please fill in all card details',
+                                  ),
+                                  backgroundColor: Colors.red.shade400,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            if (selectedCountry == countries.first) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Please select a country',
+                                  ),
+                                  backgroundColor: Colors.red.shade400,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            // Validate card number (should be 16 digits)
+                            final cardNumber = numberController.text.replaceAll(
+                              ' ',
+                              '',
+                            );
+                            if (cardNumber.length != 16) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Card number must be 16 digits',
+                                  ),
+                                  backgroundColor: Colors.red.shade400,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            // Validate expiry date format (MM/YY)
+                            if (!RegExp(
+                              r'^\d{2}/\d{2}$',
+                            ).hasMatch(expiryController.text)) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Expiry date must be in MM/YY format',
+                                  ),
+                                  backgroundColor: Colors.red.shade400,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            // Validate CVV (should be 3 digits)
+                            if (cvvController.text.length != 3) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('CVV must be 3 digits'),
+                                  backgroundColor: Colors.red.shade400,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            // Save card to Firebase
+                            final themeIndex = _savedCards.length % 3;
+                            final lastFourDigits = cardNumber.substring(12);
+
+                            _saveCardToFirebase(
+                                  cardHolderName: nameController.text,
+                                  lastFourDigits: lastFourDigits,
+                                  expiryDate: expiryController.text,
+                                  themeIndex: themeIndex,
+                                  country: selectedCountry,
+                                )
+                                .then((_) {
+                                  setState(() {
+                                    _savedCards.add({
+                                      'cardHolderName': nameController.text,
+                                      'lastFourDigits': lastFourDigits,
+                                      'expiryDate': expiryController.text,
+                                      'themeIndex': themeIndex,
+                                      'country': selectedCountry,
+                                    });
+                                    _selectedCardIndex = _savedCards.length - 1;
+                                  });
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text(
+                                        'Card saved successfully',
+                                      ),
+                                      backgroundColor: const Color(0xFF4CB32B),
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  );
+                                })
+                                .catchError((e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error saving card: $e'),
+                                      backgroundColor: Colors.red.shade400,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  );
+                                });
+                            return;
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4CB32B),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Add Card',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDialogTextField({
+    required TextEditingController controller,
+    required String label,
+    String? hintText,
+    TextInputType? keyboardType,
+    int? maxLength,
+    bool obscureText = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLength: maxLength,
+          obscureText: obscureText,
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(color: Colors.grey.shade400),
+            filled: true,
+            fillColor: Colors.white,
+            counterText: '',
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
             ),
-          );
-          return;
-        }
-      }
-    } else if (_selectedPaymentTab == 'COD') {
-      // Hanya untuk user login
-      if (AuthService.currentUser == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Anda harus login untuk menggunakan COD'),
-            backgroundColor: Colors.red.shade400,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF4CB32B)),
             ),
           ),
-        );
-        return;
-      }
-      if (_selectedCash == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Pilih nominal uang tunai untuk pembayaran.'),
-            backgroundColor: Colors.red.shade400,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-        return;
-      }
-    }
-    // Navigate to Review Page
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ReviewPage(
-          orderDetails: {
-            'orderId': 'ORD${DateTime.now().millisecondsSinceEpoch}',
-            'date': DateTime.now(),
-            'items': widget.cartItems,
-            'subtotal': widget.subtotal,
-            'tax': widget.tax,
-            'deliveryFee': widget.deliveryFee,
-            'total': widget.total,
-            'deliveryAddress': widget.deliveryAddress,
-            'customerName': widget.customerName,
-            'customerPhone': widget.customerPhone,
-            'paymentMethod': _selectedPaymentTab,
-            if (_selectedPaymentTab == 'COD') 'cashAmount': _selectedCash,
+          onChanged: (value) {
+            // Auto-format card number
+            if (label == 'Card Number') {
+              final text = value.replaceAll(' ', '');
+              if (text.length <= 16) {
+                final buffer = StringBuffer();
+                for (int i = 0; i < text.length; i++) {
+                  buffer.write(text[i]);
+                  if ((i + 1) % 4 == 0 && i + 1 != text.length) {
+                    buffer.write(' ');
+                  }
+                }
+                final newValue = buffer.toString();
+                controller.value = TextEditingValue(
+                  text: newValue,
+                  selection: TextSelection.collapsed(offset: newValue.length),
+                );
+              }
+            }
+            // Auto-format expiry date
+            if (label == 'Expiry Date') {
+              final text = value.replaceAll('/', '');
+              if (text.length <= 4) {
+                final buffer = StringBuffer();
+                for (int i = 0; i < text.length; i++) {
+                  buffer.write(text[i]);
+                  if (i == 1 && text.length > 2) {
+                    buffer.write('/');
+                  }
+                }
+                final newValue = buffer.toString();
+                controller.value = TextEditingValue(
+                  text: newValue,
+                  selection: TextSelection.collapsed(offset: newValue.length),
+                );
+              }
+            }
           },
         ),
-      ),
+      ],
     );
+  }
+
+  Widget _buildDialogCountryDropdown({
+    required List<String> countries,
+    required String selected,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Country',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: selected,
+          decoration: InputDecoration(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF4CB32B),
+                width: 1.4,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF4CB32B),
+                width: 1.2,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF4CB32B),
+                width: 1.6,
+              ),
+            ),
+          ),
+          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF4CB32B)),
+          items: countries
+              .map(
+                (c) => DropdownMenuItem(
+                  value: c,
+                  child: Text(
+                    c,
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (val) {
+            if (val != null) onChanged(val);
+          },
+        ),
+      ],
+    );
+  }
+
+  // Shipping address UI intentionally removed; address is already collected and stored in Firestore.
+
+  Future<String> _ensureOrderCreated(String userId) async {
+    if (_orderId != null) return _orderId!;
+
+    // Ensure user document exists
+    await FirebaseFirestore.instance.collection('users').doc(userId).set({
+      'email': _auth.currentUser?.email,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final newId = 'ORD${DateTime.now().millisecondsSinceEpoch}';
+    final items = widget.cartItems.map((e) {
+      return {
+        'name': e['name'],
+        'price': e['price'],
+        'quantity': e['quantity'],
+        'productId': e['productId'] ?? e['id'],
+      };
+    }).toList();
+
+    final orderData = {
+      'userId': userId,
+      'items': items,
+      'totalPrice': widget.total,
+      'paymentMethod': _selectedPaymentTab == 'Credit Card' ? 'Card' : 'COD',
+      'orderStatus': 'processing',
+      'deliveryAddress': widget.deliveryAddress,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(newId)
+        .set(orderData, SetOptions(merge: true));
+    _orderId = newId;
+    return newId;
+  }
+
+  void _processPayment() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please login to continue')));
+      return;
+    }
+
+    if (_selectedPaymentTab == 'Credit Card' && _savedCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please add a card first'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_selectedPaymentTab == 'COD' && _selectedCash == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select cash amount for payment'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final orderId = await _ensureOrderCreated(user.uid);
+      String cardLast4 = '';
+      String cardHolder = '';
+      String cardCountry = '';
+      if (_selectedPaymentTab == 'Credit Card' && _savedCards.isNotEmpty) {
+        final card = _savedCards[_selectedCardIndex];
+        cardLast4 = card['lastFourDigits'] ?? '';
+        cardHolder = card['cardHolderName'] ?? '';
+        cardCountry = card['country'] ?? '';
+      }
+
+      // Pastikan metode pembayaran yang tersimpan sesuai pilihan terbaru
+      await FirebaseFirestore.instance.collection('orders').doc(orderId).set({
+        'paymentMethod': _selectedPaymentTab == 'Credit Card' ? 'Card' : 'COD',
+        'orderStatus': 'processing',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Save payment record directly to Firestore (instead of Cloud Function)
+      await FirebaseFirestore.instance.collection('payments').doc(orderId).set({
+        'userId': user.uid,
+        'orderId': orderId,
+        'paymentMethod': _selectedPaymentTab == 'Credit Card' ? 'Card' : 'COD',
+        'cardLast4': cardLast4,
+        'cardHolder': cardHolder,
+        'cardCountry': cardCountry,
+        'status': 'completed',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update order status
+      await FirebaseFirestore.instance.collection('orders').doc(orderId).update(
+        {'orderStatus': 'confirmed', 'updatedAt': FieldValue.serverTimestamp()},
+      );
+
+      if (!mounted) return;
+      final msg = _selectedPaymentTab == 'Credit Card'
+          ? 'Payment Successful'
+          : 'Please complete the payment when the order arrives';
+
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Payment'),
+          content: Text(msg),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => OrderDetailPage(orderId: orderId),
+                  ),
+                );
+              },
+              child: const Text('View Order Details'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -237,7 +790,6 @@ class _PaymentPageState extends State<PaymentPage> {
                     if (_selectedPaymentTab == 'Credit Card') ...[
                       _buildSavedCards(),
                       const SizedBox(height: 24),
-                      _buildCardForm(),
                     ] else ...[
                       _buildCODInfo(),
                     ],
@@ -372,271 +924,571 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Widget _buildSavedCards() {
-    return SizedBox(
-      height: 200,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _savedCards.length,
-        itemBuilder: (context, index) {
-          final card = _savedCards[index];
-          final isSelected = _selectedCardIndex == index;
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedCardIndex = index;
-              });
-            },
-            child: Container(
-              width: index == 0 ? 300 : 280,
-              margin: EdgeInsets.only(right: index == 0 ? 16 : 0),
-              child: Stack(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
+    if (_savedCards.isEmpty) {
+      // Empty state with Add Card button
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade300, width: 2),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.credit_card_outlined,
+                size: 48,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No saved cards',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Add a card to get started',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _showAddCardDialog,
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text(
+                  'Add Card',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CB32B),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Display saved cards with Add Card button at the end
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _savedCards.length + 1, // +1 for Add Card button
+            itemBuilder: (context, index) {
+              if (index == _savedCards.length) {
+                // Add Card button
+                return GestureDetector(
+                  onTap: _showAddCardDialog,
+                  child: Container(
+                    width: 160,
+                    margin: const EdgeInsets.only(left: 16),
                     decoration: BoxDecoration(
-                      color: card['color'] as Color,
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF4CB32B),
+                        width: 2,
+                      ),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4CB32B).withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.add,
+                            color: Color(0xFF4CB32B),
+                            size: 32,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         const Text(
-                          'Credit Card',
+                          'Add Card',
                           style: TextStyle(
-                            color: Colors.white,
                             fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF4CB32B),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          card['balance'] as String,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '**** **** **** ${card['lastFourDigits']}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withOpacity(0.3),
-                              ),
-                              child: Icon(
-                                Icons.circle,
-                                color: Colors.white.withOpacity(0.5),
-                                size: 20,
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
                   ),
-                  if (isSelected)
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Color(0xFF4CB32B),
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                ],
+                );
+              }
+
+              final card = _savedCards[index];
+              final isSelected = _selectedCardIndex == index;
+              final formattedTotal = _currencyFormatter.format(_totalAmount);
+              final themeIndex = (card['themeIndex'] as int?) ?? 0;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedCardIndex = index;
+                  });
+                },
+                child: Container(
+                  width: 320,
+                  margin: EdgeInsets.only(right: 16),
+                  child: _buildThemedCard(
+                    card: card,
+                    formattedTotal: formattedTotal,
+                    isSelected: isSelected,
+                    themeIndex: themeIndex,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThemedCard({
+    required Map<String, dynamic> card,
+    required String formattedTotal,
+    required bool isSelected,
+    required int themeIndex,
+  }) {
+    final maskedNumber = '**** **** **** ${card['lastFourDigits']}';
+    final theme = themeIndex % 3;
+    late final Widget body;
+
+    if (theme == 0) {
+      body = _purpleMinimalCard(formattedTotal, maskedNumber);
+    } else if (theme == 1) {
+      body = _tealFriendlyCard(formattedTotal, maskedNumber);
+    } else {
+      body = _premiumGradientCard(formattedTotal, maskedNumber);
+    }
+
+    return Stack(
+      children: [
+        body,
+        if (isSelected)
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check,
+                color: Color(0xFF4CB32B),
+                size: 20,
               ),
             ),
-          );
-        },
+          ),
+      ],
+    );
+  }
+
+  Widget _purpleMinimalCard(String formattedTotal, String maskedNumber) {
+    return Container(
+      width: 320,
+      height: 200,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3C1F74), Color(0xFF4B278A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -10,
+            right: 20,
+            child: Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.06),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -20,
+            left: -10,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -6,
+            right: 40,
+            child: Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Credit Card',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  _networkLogo(light: true),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Total Payment',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                formattedTotal,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                maskedNumber,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildCardForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildTextField(
-          controller: _cardHolderController,
-          label: 'Card Holder Name',
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _cardNumberController,
-          label: 'Card Number',
-          hintText: '1234 5678 9101 1121',
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                controller: _monthYearController,
-                label: 'Month/Year',
-                hintText: 'Enter here',
+  Widget _tealFriendlyCard(String formattedTotal, String maskedNumber) {
+    return Container(
+      width: 320,
+      height: 200,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A9D8F),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -16,
+            right: 24,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F8074).withOpacity(0.35),
+                shape: BoxShape.circle,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildTextField(
-                controller: _cvvController,
-                label: 'CVV',
-                hintText: 'Enter here',
-                keyboardType: TextInputType.number,
+          ),
+          Positioned(
+            bottom: -30,
+            left: 10,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B6E64).withOpacity(0.35),
+                shape: BoxShape.circle,
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildCountryDropdown(),
-        const SizedBox(height: 16),
-        _buildSaveAddressCheckbox(),
-      ],
+          ),
+          Positioned(
+            bottom: 18,
+            right: 22,
+            child: Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.18),
+                  width: 1.2,
+                ),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -6,
+            right: -14,
+            child: Container(
+              width: 110,
+              height: 110,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6C5ECF).withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Credit Card',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  _networkLogo(light: true),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Total Payment',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                formattedTotal,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                maskedNumber,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    String? hintText,
-    TextInputType? keyboardType,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
+  Widget _premiumGradientCard(String formattedTotal, String maskedNumber) {
+    return Container(
+      width: 320,
+      height: 200,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E88E5), Color(0xFFFF8A65)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(color: Colors.grey.shade400),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF4CB32B)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCountryDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Country',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonFormField<String>(
-            value: _selectedCountry.isEmpty ? null : _selectedCountry,
-            hint: Text(
-              'Choose your country',
-              style: TextStyle(color: Colors.grey.shade400),
-            ),
-            decoration: const InputDecoration(
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -12,
+            right: 10,
+            child: Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                shape: BoxShape.circle,
               ),
-              border: InputBorder.none,
             ),
-            icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF4CB32B)),
-            items: _countries.map((country) {
-              return DropdownMenuItem(value: country, child: Text(country));
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedCountry = value ?? '';
-              });
-            },
           ),
-        ),
-      ],
+          Positioned(
+            bottom: -16,
+            right: 30,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 14,
+            right: 18,
+            child: Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1.1,
+                ),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      _indoFlag(),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'KARTU REKENING',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _networkLogo(light: true),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Total Payment',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                formattedTotal,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                maskedNumber,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSaveAddressCheckbox() {
-    return Row(
-      children: [
-        SizedBox(
-          width: 24,
-          height: 24,
-          child: Checkbox(
-            value: _saveShippingAddress,
-            onChanged: (value) {
-              setState(() {
-                _saveShippingAddress = value ?? false;
-              });
-            },
-            activeColor: const Color(0xFF4CB32B),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
+  Widget _networkLogo({bool light = true}) {
+    final Color base = light ? Colors.white : Colors.black;
+    return SizedBox(
+      width: 52,
+      height: 30,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: base.withOpacity(0.35),
+                shape: BoxShape.circle,
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        const Text(
-          'Save shipping address',
-          style: TextStyle(fontSize: 14, color: Colors.black),
-        ),
-      ],
+          Positioned(
+            right: 0,
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: base.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _indoFlag() {
+    return Container(
+      width: 20,
+      height: 14,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: Colors.white.withOpacity(0.4), width: 0.5),
+      ),
+      child: Column(
+        children: [
+          Expanded(child: Container(color: const Color(0xFFCE1126))),
+          Expanded(child: Container(color: Colors.white)),
+        ],
+      ),
     );
   }
 
@@ -646,56 +1498,7 @@ class _PaymentPageState extends State<PaymentPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Address',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
-        ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isCodAddressPressed
-                  ? const Color(0xFF4CB32B)
-                  : Colors.grey.shade300,
-              width: 2,
-            ),
-          ),
-          child: TextField(
-            controller: _addressController,
-            keyboardType: TextInputType.multiline,
-            maxLines: null,
-            onTap: () {
-              setState(() {
-                isCodAddressPressed = true;
-              });
-            },
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
-            decoration: InputDecoration(
-              hintText: 'Address',
-              hintStyle: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-                color: Colors.grey,
-              ),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 16,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
         if (isLoggedIn) ...[
           // Card: Rincian Biaya
           Container(
