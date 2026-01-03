@@ -293,25 +293,23 @@ class ApiService {
         print('[API] Parsed data keys: ${parsedData.keys}');
 
         // Check for pagination structure
-        if (parsedData is Map) {
-          if (parsedData.containsKey('data')) {
-            final dataContent = parsedData['data'];
-            print('[API] data field type: ${dataContent.runtimeType}');
-            if (dataContent is List) {
-              print('[API] data is List with ${dataContent.length} items');
-            } else if (dataContent is Map) {
-              print('[API] data is Map with keys: ${dataContent.keys}');
-              if (dataContent.containsKey('data')) {
-                final innerData = dataContent['data'];
-                print('[API] Inner data type: ${innerData.runtimeType}');
-                if (innerData is List) {
-                  print('[API] Inner data list has ${innerData.length} items');
-                }
+        if (parsedData.containsKey('data')) {
+          final dataContent = parsedData['data'];
+          print('[API] data field type: ${dataContent.runtimeType}');
+          if (dataContent is List) {
+            print('[API] data is List with ${dataContent.length} items');
+          } else if (dataContent is Map) {
+            print('[API] data is Map with keys: ${dataContent.keys}');
+            if (dataContent.containsKey('data')) {
+              final innerData = dataContent['data'];
+              print('[API] Inner data type: ${innerData.runtimeType}');
+              if (innerData is List) {
+                print('[API] Inner data list has ${innerData.length} items');
               }
             }
           }
         }
-        print('[API] ===== END DEBUG =====');
+              print('[API] ===== END DEBUG =====');
 
         return {'success': true, 'data': parsedData};
       } else {

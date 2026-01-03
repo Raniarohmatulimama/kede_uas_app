@@ -578,7 +578,7 @@ class ApiService {
           .get();
 
       final products = productsQuery.docs.map((doc) {
-        final docData = doc.data() as Map<String, dynamic>;
+        final docData = doc.data();
         return {...docData, 'id': doc.id};
       }).toList();
 

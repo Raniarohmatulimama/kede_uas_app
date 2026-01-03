@@ -8,7 +8,7 @@ import '../detail_page.dart';
 class WishlistPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
 
-  const WishlistPage({Key? key, this.onBackToHome}) : super(key: key);
+  const WishlistPage({super.key, this.onBackToHome});
 
   @override
   State<WishlistPage> createState() => _WishlistPageState();

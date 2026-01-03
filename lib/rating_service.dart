@@ -43,7 +43,7 @@ class RatingService {
         user.displayName ?? user.email?.split('@')[0] ?? 'Anonymous';
     String userAvatar =
         user.photoURL ??
-        'https://ui-avatars.com/api/?name=${userName}&background=4CB32B&color=fff';
+        'https://ui-avatars.com/api/?name=$userName&background=4CB32B&color=fff';
 
     // Try to get additional user data from Firestore if available
     try {

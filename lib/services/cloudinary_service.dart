@@ -177,7 +177,7 @@ class CloudinaryService {
     try {
       // This is a simple implementation
       // For full JSON support, import 'dart:convert' and use jsonDecode
-      final jsonDecode = (String json) {
+      Map<String, dynamic> jsonDecode(String json) {
         // Fallback JSON parser
         // Extract key values manually
         final map = <String, dynamic>{};
@@ -204,7 +204,7 @@ class CloudinaryService {
         }
 
         return map;
-      };
+      }
 
       return jsonDecode(json);
     } catch (e) {

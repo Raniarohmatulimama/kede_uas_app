@@ -5,7 +5,7 @@ void main() {
 }
 
 class ActionSheetApp extends StatelessWidget {
-  const ActionSheetApp({Key? key}) : super(key: key);
+  const ActionSheetApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +17,7 @@ class ActionSheetApp extends StatelessWidget {
 }
 
 class ActionSheetPage extends StatelessWidget {
-  const ActionSheetPage({Key? key}) : super(key: key);
+  const ActionSheetPage({super.key});
 
   void _showOneGroup(BuildContext context) {
     showModalBottomSheet(

@@ -23,7 +23,7 @@ void main() async {
 }
 
 class KedeGroceryApp extends StatelessWidget {
-  const KedeGroceryApp({Key? key}) : super(key: key);
+  const KedeGroceryApp({super.key});
 
   @override
   Widget build(BuildContext context) {

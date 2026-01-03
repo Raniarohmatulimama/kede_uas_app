@@ -5,7 +5,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +21,7 @@ class MyApp extends StatelessWidget {
 }
 
 class GridLayoutPage extends StatelessWidget {
-  const GridLayoutPage({Key? key}) : super(key: key);
+  const GridLayoutPage({super.key});
 
   @override
   Widget build(BuildContext context) {

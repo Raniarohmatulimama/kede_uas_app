@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -15,7 +14,7 @@ import 'services/auth_service.dart';
 import 'sign_in/sign_in_screen.dart';
 
 class MessagesListPage extends StatefulWidget {
-  const MessagesListPage({Key? key}) : super(key: key);
+  const MessagesListPage({super.key});
 
   @override
   State<MessagesListPage> createState() => _MessagesListPageState();
@@ -811,12 +810,12 @@ class ChatPage extends StatefulWidget {
   final String? otherUserPhoto;
 
   const ChatPage({
-    Key? key,
+    super.key,
     required this.chatId,
     required this.otherUserId,
     required this.otherUserName,
     this.otherUserPhoto,
-  }) : super(key: key);
+  });
 
   @override
   State<ChatPage> createState() => _ChatPageState();

@@ -7,7 +7,7 @@ import 'wishlist/WishlistPage.dart';
 import 'providers/user_provider.dart';
 
 class ProfilePageDetail extends StatefulWidget {
-  const ProfilePageDetail({Key? key}) : super(key: key);
+  const ProfilePageDetail({super.key});
 
   @override
   State<ProfilePageDetail> createState() => _ProfilePageDetailState();

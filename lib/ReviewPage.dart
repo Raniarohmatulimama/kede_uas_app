@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home/HomePage.dart';
 import 'rating_service.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +7,7 @@ import 'providers/user_provider.dart';
 class ReviewPage extends StatefulWidget {
   final Map<String, dynamic> orderDetails;
 
-  const ReviewPage({Key? key, required this.orderDetails}) : super(key: key);
+  const ReviewPage({super.key, required this.orderDetails});
 
   @override
   State<ReviewPage> createState() => _ReviewPageState();

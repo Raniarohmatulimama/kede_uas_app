@@ -23,7 +23,7 @@ class _ColorPickerPageState extends State<ColorPickerPage> {
   Color _hexToColor(String hexString) {
     hexString = hexString.replaceAll('#', '');
     if (hexString.length == 6) {
-      hexString = 'FF' + hexString;
+      hexString = 'FF$hexString';
     }
     try {
       return Color(int.parse(hexString, radix: 16));

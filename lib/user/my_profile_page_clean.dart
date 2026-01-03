@@ -7,7 +7,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../services/auth_service.dart';
-import '../services/api_service.dart';
 import '../home/HomePage.dart';
 import '../home/categories_page.dart';
 import '../shopping_cart/shopping.cart.dart';
@@ -18,7 +17,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 
 class MyProfilePage extends StatefulWidget {
-  const MyProfilePage({Key? key}) : super(key: key);
+  const MyProfilePage({super.key});
   @override
   State<MyProfilePage> createState() => _MyProfilePageState();
 }

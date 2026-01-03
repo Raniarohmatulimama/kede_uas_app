@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'sign_in/sign_in_screen.dart';
 import 'home/HomePage.dart';
 import 'services/auth_service.dart';
 

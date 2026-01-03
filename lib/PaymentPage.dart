@@ -22,7 +22,7 @@ class PaymentPage extends StatefulWidget {
   final String notes;
 
   const PaymentPage({
-    Key? key,
+    super.key,
     required this.cartItems,
     required this.subtotal,
     required this.tax,
@@ -32,7 +32,7 @@ class PaymentPage extends StatefulWidget {
     required this.customerName,
     required this.customerPhone,
     required this.notes,
-  }) : super(key: key);
+  });
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
@@ -95,7 +95,7 @@ class _PaymentPageState extends State<PaymentPage> {
         setState(() {
           _savedCards.clear();
           for (var doc in snapshot.docs) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             _savedCards.add({
               'cardHolderName': data['cardHolderName'],
               'lastFourDigits': data['lastFourDigits'],
@@ -766,7 +766,7 @@ class _PaymentPageState extends State<PaymentPage> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: selected,
+          initialValue: selected,
           decoration: InputDecoration(
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,

@@ -6,7 +6,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
 }
 
 class GaugePage extends StatefulWidget {
-  const GaugePage({Key? key}) : super(key: key);
+  const GaugePage({super.key});
 
   @override
   State<GaugePage> createState() => _GaugePageState();
@@ -274,11 +274,11 @@ class GaugeButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const GaugeButton({
-    Key? key,
+    super.key,
     required this.label,
     required this.isSelected,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +317,7 @@ class CircleGauge extends StatelessWidget {
   final Color? sublabelColor;
 
   const CircleGauge({
-    Key? key,
+    super.key,
     required this.value,
     required this.size,
     required this.strokeWidth,
@@ -327,7 +327,7 @@ class CircleGauge extends StatelessWidget {
     this.sublabel,
     this.labelColor,
     this.sublabelColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -434,7 +434,7 @@ class SemicircleGauge extends StatelessWidget {
   final double? labelSize;
 
   const SemicircleGauge({
-    Key? key,
+    super.key,
     required this.value,
     required this.size,
     required this.strokeWidth,
@@ -443,7 +443,7 @@ class SemicircleGauge extends StatelessWidget {
     this.sublabel,
     this.labelColor,
     this.labelSize,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

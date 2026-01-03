@@ -29,7 +29,7 @@ Future<DateTime?> _showCalendarBottomSheet(BuildContext ctx) {
 }
 
 class CalendarPage extends StatelessWidget {
-  const CalendarPage({Key? key}) : super(key: key);
+  const CalendarPage({super.key});
 
   Widget _sectionTitle(String text) {
     return Padding(
@@ -284,7 +284,7 @@ class CalendarPage extends StatelessWidget {
 }
 
 class CalendarInlineWidget extends StatefulWidget {
-  const CalendarInlineWidget({Key? key}) : super(key: key);
+  const CalendarInlineWidget({super.key});
 
   @override
   State<CalendarInlineWidget> createState() => _CalendarInlineWidgetState();
@@ -406,8 +406,9 @@ class _CalendarInlineWidgetState extends State<CalendarInlineWidget> {
     int remainder = cells.length % 7;
     if (remainder != 0) {
       final toAdd = 7 - remainder;
-      for (int i = 1; i <= toAdd; i++)
+      for (int i = 1; i <= toAdd; i++) {
         cells.add(_dayCellWidget(i, muted: true));
+      }
     }
 
     return Column(
@@ -470,14 +471,14 @@ class _CalendarInlineWidgetState extends State<CalendarInlineWidget> {
 }
 
 class CalendarFullPage extends StatefulWidget {
-  const CalendarFullPage({Key? key}) : super(key: key);
+  const CalendarFullPage({super.key});
 
   @override
   State<CalendarFullPage> createState() => _CalendarFullPageState();
 }
 
 class _CalendarFullPageState extends State<CalendarFullPage> {
-  DateTime _displayed = DateTime.now();
+  final DateTime _displayed = DateTime.now();
   // Full page displays calendar + events list (only on this page)
 
   final List<Map<String, Object>> _events = [
@@ -617,7 +618,7 @@ class _CalendarFullPageState extends State<CalendarFullPage> {
 }
 
 class _CalendarBottomSheet extends StatefulWidget {
-  const _CalendarBottomSheet({Key? key}) : super(key: key);
+  const _CalendarBottomSheet();
 
   @override
   State<_CalendarBottomSheet> createState() => _CalendarBottomSheetState();
@@ -806,7 +807,7 @@ class _CalendarBottomSheetState extends State<_CalendarBottomSheet> {
                         onPressed: _prev,
                       ),
                       Text(
-                        '${_monthNames[month - 1]}',
+                        _monthNames[month - 1],
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

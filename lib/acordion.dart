@@ -5,7 +5,7 @@ void main() {
 }
 
 class AccordionApp extends StatelessWidget {
-  const AccordionApp({Key? key}) : super(key: key);
+  const AccordionApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +17,7 @@ class AccordionApp extends StatelessWidget {
 }
 
 class AccordionPage extends StatefulWidget {
-  const AccordionPage({Key? key}) : super(key: key);
+  const AccordionPage({super.key});
 
   @override
   State<AccordionPage> createState() => _AccordionPageState();

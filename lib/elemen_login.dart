@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'element.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +21,7 @@ class MyApp extends StatelessWidget {
 }
 
 class LoginMenuPage extends StatelessWidget {
-  const LoginMenuPage({Key? key}) : super(key: key);
+  const LoginMenuPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +129,7 @@ class LoginMenuPage extends StatelessWidget {
 }
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -346,7 +344,7 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 class LoginOverlayPage extends StatefulWidget {
-  const LoginOverlayPage({Key? key}) : super(key: key);
+  const LoginOverlayPage({super.key});
 
   @override
   State<LoginOverlayPage> createState() => _LoginOverlayPageState();

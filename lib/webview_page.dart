@@ -157,7 +157,7 @@ class _WebViewExampleState extends State<WebViewExample> {
           if(node.nodeValue.toLowerCase().includes('${escaped.toLowerCase()}')){
             const span = document.createElement('span');
             span.textContent = node.nodeValue;
-            span.innerHTML = span.innerHTML.replace(new RegExp('${escaped}', 'gi'), m => '<mark class="flutterSearchHighlight" style="background:yellow;">'+m+'</mark>');
+            span.innerHTML = span.innerHTML.replace(new RegExp('$escaped', 'gi'), m => '<mark class="flutterSearchHighlight" style="background:yellow;">'+m+'</mark>');
             const frag = document.createRange().createContextualFragment(span.innerHTML);
             node.parentNode.replaceChild(frag, node);
           }

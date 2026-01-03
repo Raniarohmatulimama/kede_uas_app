@@ -11,7 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 class AddEditProductPage extends StatefulWidget {
   final Product? product; // null for add, non-null for edit
 
-  const AddEditProductPage({Key? key, this.product}) : super(key: key);
+  const AddEditProductPage({super.key, this.product});
 
   @override
   State<AddEditProductPage> createState() => _AddEditProductPageState();
@@ -25,7 +25,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
   final _stockController = TextEditingController();
 
   String _selectedCategory = 'Fruits';
-  List<File> _imageFiles = [];
+  final List<File> _imageFiles = [];
   bool _isLoading = false;
 
   final List<String> _categories = [
@@ -117,8 +117,8 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                 title: const Text('Choose Multiple from Gallery'),
                 onTap: () async {
                   Navigator.pop(context);
-                  final List<XFile>? images = await picker.pickMultiImage();
-                  if (images != null && images.isNotEmpty) {
+                  final List<XFile> images = await picker.pickMultiImage();
+                  if (images.isNotEmpty) {
                     setState(() {
                       _imageFiles.addAll(images.map((x) => File(x.path)));
                     });
@@ -190,7 +190,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
       } else {
         // Update existing product
         result = await ApiService.updateProduct(
-          id: widget.product!.id!,
+          id: widget.product!.id,
           name: name,
           description: description,
           price: price,
@@ -502,7 +502,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: _selectedCategory,
+                          initialValue: _selectedCategory,
                           decoration: InputDecoration(
                             filled: true,
                             fillColor: Colors.grey.shade50,
