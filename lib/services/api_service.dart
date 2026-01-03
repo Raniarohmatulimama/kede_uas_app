@@ -263,7 +263,7 @@ class ApiService {
     required double price,
     required String category,
     required int stock,
-    File? imageFile,
+    List<File>? imageFiles,
   }) async {
     try {
       final userId = AuthService.currentUserId;
@@ -271,33 +271,28 @@ class ApiService {
         return {'success': false, 'message': 'User not authenticated'};
       }
 
-      String? imageUrl;
-      String? imagePublicId;
-
-      // Upload image to Cloudinary if provided
-      if (imageFile != null) {
-        print('[API] Uploading product image to Cloudinary...');
-
-        final result = await CloudinaryService.uploadImage(
-          imageFile,
-          tags: {
-            'seller_id': userId,
-            'type': 'product_image',
-            'product_name': name,
-          },
-        );
-
-        if (!result['success']) {
-          return {
-            'success': false,
-            'message': 'Image upload failed: ${result['message']}',
-          };
+      List<String> imageUrls = [];
+      List<String> imagePublicIds = [];
+      if (imageFiles != null && imageFiles.isNotEmpty) {
+        for (final file in imageFiles) {
+          final result = await CloudinaryService.uploadImage(
+            file,
+            tags: {
+              'seller_id': userId,
+              'type': 'product_image',
+              'product_name': name,
+            },
+          );
+          if (result['success'] == true) {
+            imageUrls.add(result['url'] as String);
+            imagePublicIds.add(result['publicId'] as String);
+          } else {
+            return {
+              'success': false,
+              'message': 'Image upload failed: ${result['message']}',
+            };
+          }
         }
-
-        imageUrl = result['url'] as String;
-        imagePublicId = result['publicId'] as String;
-
-        print('[API] Product image uploaded: $imagePublicId');
       }
 
       // Create product document
@@ -309,8 +304,8 @@ class ApiService {
             'price': price,
             'category': category,
             'stock': stock,
-            'image': imageUrl,
-            'image_public_id': imagePublicId, // Store public_id for reference
+            'imageUrls': imageUrls,
+            'image_public_ids': imagePublicIds,
             'seller_id': userId,
             'created_at': FieldValue.serverTimestamp(),
             'updated_at': FieldValue.serverTimestamp(),
@@ -326,7 +321,7 @@ class ApiService {
             'price': price,
             'category': category,
             'stock': stock,
-            'image': imageUrl,
+            'imageUrls': imageUrls,
           },
         },
       };
@@ -344,7 +339,7 @@ class ApiService {
     required double price,
     required String category,
     required int stock,
-    File? imageFile,
+    List<File>? imageFiles,
   }) async {
     try {
       final userId = AuthService.currentUserId;
@@ -367,33 +362,34 @@ class ApiService {
         return {'success': false, 'message': 'Unauthorized'};
       }
 
-      String? imageUrl = productData['image'];
-      String? imagePublicId = productData['image_public_id'];
-
-      // Upload new image to Cloudinary if provided
-      if (imageFile != null) {
-        print('[API] Uploading updated product image to Cloudinary...');
-
-        final result = await CloudinaryService.uploadImage(
-          imageFile,
-          tags: {
-            'seller_id': userId,
-            'type': 'product_image',
-            'product_name': name,
-          },
-        );
-
-        if (!result['success']) {
-          return {
-            'success': false,
-            'message': 'Image upload failed: ${result['message']}',
-          };
+      List<String> imageUrls = List<String>.from(
+        productData['imageUrls'] ?? [],
+      );
+      List<String> imagePublicIds = List<String>.from(
+        productData['image_public_ids'] ?? [],
+      );
+      if (imageFiles != null && imageFiles.isNotEmpty) {
+        imageUrls = [];
+        imagePublicIds = [];
+        for (final file in imageFiles) {
+          final result = await CloudinaryService.uploadImage(
+            file,
+            tags: {
+              'seller_id': userId,
+              'type': 'product_image',
+              'product_name': name,
+            },
+          );
+          if (result['success'] == true) {
+            imageUrls.add(result['url'] as String);
+            imagePublicIds.add(result['publicId'] as String);
+          } else {
+            return {
+              'success': false,
+              'message': 'Image upload failed: ${result['message']}',
+            };
+          }
         }
-
-        imageUrl = result['url'] as String;
-        imagePublicId = result['publicId'] as String;
-
-        print('[API] Product image updated: $imagePublicId');
       }
 
       // Update product
@@ -406,9 +402,8 @@ class ApiService {
             'price': price,
             'category': category,
             'stock': stock,
-            'image': imageUrl,
-            'image_public_id': imagePublicId,
-            'image': imageUrl,
+            'imageUrls': imageUrls,
+            'image_public_ids': imagePublicIds,
             'updated_at': FieldValue.serverTimestamp(),
           });
 

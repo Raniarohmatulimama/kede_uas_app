@@ -585,7 +585,27 @@ class _AllProductsPageState extends State<AllProductsPage> {
                   // Product Image
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: product.imageUrl != null
+                    child:
+                        (product.imageUrls != null &&
+                            product.imageUrls!.isNotEmpty)
+                        ? Image.network(
+                            ApiConfig.assetUrl(product.imageUrls!.first),
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 60,
+                                height: 60,
+                                color: Colors.grey.shade200,
+                                child: Icon(
+                                  Icons.image_outlined,
+                                  color: Colors.grey.shade400,
+                                ),
+                              );
+                            },
+                          )
+                        : (product.imageUrl != null)
                         ? Image.network(
                             ApiConfig.assetUrl(product.imageUrl!),
                             width: 60,
@@ -1256,7 +1276,25 @@ class _ProductCardState extends State<_ProductCard> {
             fit: StackFit.expand,
             children: [
               // Product Image - Full coverage
-              widget.product.imageUrl != null
+              (widget.product.imageUrls != null &&
+                      widget.product.imageUrls!.isNotEmpty)
+                  ? Image.network(
+                      ApiConfig.assetUrl(widget.product.imageUrls!.first),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey.shade200,
+                          child: Center(
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 60,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  : (widget.product.imageUrl != null)
                   ? Image.network(
                       ApiConfig.assetUrl(widget.product.imageUrl!),
                       fit: BoxFit.cover,
