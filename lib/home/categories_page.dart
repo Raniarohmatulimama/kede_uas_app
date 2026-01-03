@@ -6,16 +6,13 @@ import '../detail_page.dart';
 import '../models/product_model.dart';
 import '../services/api_service.dart';
 import 'add_product_page.dart';
-import '../services/auth_service.dart';
-import '../sign_in/sign_in_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class CategoriesPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
   final VoidCallback? onGoToCart;
 
-  const CategoriesPage({Key? key, this.onBackToHome, this.onGoToCart})
-    : super(key: key);
+  const CategoriesPage({super.key, this.onBackToHome, this.onGoToCart});
 
   @override
   State<CategoriesPage> createState() => _CategoriesPageState();
@@ -141,8 +138,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => AllProductsPage(
-                      categoryName: category['name'] as String?,
-                      categoryIcon: category['icon'] as String?,
+                      categoryName: category['name'],
+                      categoryIcon: category['icon'],
                       onGoToCart: widget.onGoToCart,
                     ),
                   ),
@@ -266,19 +263,19 @@ class CategoryDetailPage extends StatelessWidget {
   final String itemCount;
 
   const CategoryDetailPage({
-    Key? key,
+    super.key,
     required this.categoryName,
     required this.itemCount,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF4CB32B),
-        title: Text('$categoryName'),
+        title: Text(categoryName),
       ),
-      body: Center(child: Text('$itemCount')),
+      body: Center(child: Text(itemCount)),
     );
   }
 }
@@ -290,11 +287,11 @@ class AllProductsPage extends StatefulWidget {
   final VoidCallback? onGoToCart;
 
   const AllProductsPage({
-    Key? key,
+    super.key,
     this.categoryName,
     this.categoryIcon,
     this.onGoToCart,
-  }) : super(key: key);
+  });
 
   @override
   State<AllProductsPage> createState() => _AllProductsPageState();
@@ -517,8 +514,8 @@ class _AllProductsPageState extends State<AllProductsPage> {
       ),
     );
 
-    if (confirm == true && product.id != null) {
-      final result = await ApiService.deleteProduct(product.id!);
+    if (confirm == true) {
+      final result = await ApiService.deleteProduct(product.id);
       if (mounted) {
         if (result['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(

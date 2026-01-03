@@ -17,7 +17,7 @@ class CardItem {
 }
 
 class CardsExpandablePage extends StatelessWidget {
-  const CardsExpandablePage({Key? key}) : super(key: key);
+  const CardsExpandablePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +139,7 @@ class CardsExpandablePage extends StatelessWidget {
 class ExpandableCard extends StatelessWidget {
   final CardItem card;
 
-  const ExpandableCard({Key? key, required this.card}) : super(key: key);
+  const ExpandableCard({super.key, required this.card});
 
   @override
   Widget build(BuildContext context) {
@@ -341,7 +341,7 @@ class ExpandableCard extends StatelessWidget {
 class CardDetailPage extends StatefulWidget {
   final CardItem card;
 
-  const CardDetailPage({Key? key, required this.card}) : super(key: key);
+  const CardDetailPage({super.key, required this.card});
 
   @override
   _CardDetailPageState createState() => _CardDetailPageState();

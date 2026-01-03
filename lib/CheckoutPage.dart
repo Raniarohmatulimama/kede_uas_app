@@ -11,12 +11,12 @@ class CheckoutPage extends StatefulWidget {
   final double total;
 
   const CheckoutPage({
-    Key? key,
+    super.key,
     required this.cartItems,
     required this.subtotal,
     required this.tax,
     required this.total,
-  }) : super(key: key);
+  });
 
   @override
   State<CheckoutPage> createState() => _CheckoutPageState();
@@ -447,7 +447,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: DropdownButtonFormField<String>(
-            value: _selectedCountry,
+            initialValue: _selectedCountry,
             decoration: const InputDecoration(
               contentPadding: EdgeInsets.symmetric(
                 horizontal: 16,

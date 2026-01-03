@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'rating_page_integration.dart';
 import 'ReviewPage.dart';
 
 class OrderDetailPage extends StatefulWidget {
@@ -10,11 +8,11 @@ class OrderDetailPage extends StatefulWidget {
   final bool fromNotification;
 
   const OrderDetailPage({
-    Key? key,
+    super.key,
     required this.orderId,
     this.showNotification = false,
     this.fromNotification = false,
-  }) : super(key: key);
+  });
 
   @override
   State<OrderDetailPage> createState() => _OrderDetailPageState();

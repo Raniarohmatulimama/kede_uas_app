@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../config/firebase_config.dart';
 import '../create_account/create_account.dart';
@@ -11,7 +10,7 @@ import '../welcome_screen.dart';
 import '../providers/user_provider.dart';
 
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({Key? key}) : super(key: key);
+  const SignInScreen({super.key});
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();

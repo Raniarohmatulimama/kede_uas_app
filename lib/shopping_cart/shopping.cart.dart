@@ -9,10 +9,10 @@ class ShoppingCartPage extends StatefulWidget {
   final bool showBottomNavBar;
 
   const ShoppingCartPage({
-    Key? key,
+    super.key,
     this.initialItems = const [],
     this.showBottomNavBar = true,
-  }) : super(key: key);
+  });
 
   @override
   State<ShoppingCartPage> createState() => _ShoppingCartPageState();
@@ -332,10 +332,10 @@ class CartItemWidget extends StatelessWidget {
   final Function(int) onQuantityChanged;
 
   const CartItemWidget({
-    Key? key,
+    super.key,
     required this.item,
     required this.onQuantityChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

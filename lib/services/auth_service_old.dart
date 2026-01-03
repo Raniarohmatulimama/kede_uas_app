@@ -331,18 +331,21 @@ class AuthService {
     try {
       if (data is Map<String, dynamic>) {
         if (data['token'] is String) return data['token'] as String;
-        if (data['access_token'] is String)
+        if (data['access_token'] is String) {
           return data['access_token'] as String;
+        }
         // Laravel JWT often returns { authorisation: { token: '...' } }
         final auth = data['authorisation'];
-        if (auth is Map && auth['token'] is String)
+        if (auth is Map && auth['token'] is String) {
           return auth['token'] as String;
+        }
         // Some APIs wrap payload under 'data'
         final inner = data['data'];
         if (inner is Map<String, dynamic>) {
           if (inner['token'] is String) return inner['token'] as String;
-          if (inner['access_token'] is String)
+          if (inner['access_token'] is String) {
             return inner['access_token'] as String;
+          }
         }
       }
     } catch (_) {}

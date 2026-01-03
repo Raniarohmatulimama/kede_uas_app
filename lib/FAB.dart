@@ -5,8 +5,7 @@ class _PlusButton extends StatelessWidget {
   final double size;
   final Widget? child;
 
-  const _PlusButton({this.onTap, this.size = 56, this.child, Key? key})
-    : super(key: key);
+  const _PlusButton({this.onTap, this.size = 56, this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +40,7 @@ class _PlusButton extends StatelessWidget {
 class _NumberBubble extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
-  const _NumberBubble({required this.label, this.onTap, Key? key})
-    : super(key: key);
+  const _NumberBubble({required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +75,7 @@ class _NumberBubble extends StatelessWidget {
 }
 
 class FabDemoPage extends StatefulWidget {
-  const FabDemoPage({Key? key}) : super(key: key);
+  const FabDemoPage({super.key});
 
   static const String _lorem =
       '''Lorem ipsum dolor sit amet, consectetur adipisicing elit. Quia, quo rem beatae, delectus eligendi est saepe molestias perferendis suscipit, commodi labore ipsa non quasi eum magnam neque ducimus! Quasi, numquam.

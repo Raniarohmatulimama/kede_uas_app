@@ -135,7 +135,7 @@ class _ToggleScreenState extends State<ToggleScreen> {
                           // Warna Track saat aktif (warna-warni)
                           activeTrackColor: hero.activeTrackColor,
                           // Warna Thumb (lingkaran putih)
-                          activeColor: Colors.white,
+                          activeThumbColor: Colors.white,
                           // Warna Track saat non-aktif
                           inactiveTrackColor: hero.activeTrackColor.withOpacity(
                             0.3,

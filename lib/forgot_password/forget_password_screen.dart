@@ -3,7 +3,7 @@ import '../services/auth_service.dart';
 import '../sign_in/sign_in_screen.dart';
 
 class ForgetPasswordScreen extends StatefulWidget {
-  const ForgetPasswordScreen({Key? key}) : super(key: key);
+  const ForgetPasswordScreen({super.key});
 
   @override
   State<ForgetPasswordScreen> createState() => _ForgetPasswordScreenState();
@@ -18,9 +18,9 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
   bool _isLoading = false;
   int _step = 1; // 1: Email verification, 2: Password reset
   String _resetEmail = '';
-  String _resetToken = '';
-  bool _showPassword = false;
-  bool _showConfirmPassword = false;
+  final String _resetToken = '';
+  final bool _showPassword = false;
+  final bool _showConfirmPassword = false;
 
   @override
   void dispose() {

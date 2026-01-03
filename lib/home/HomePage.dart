@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,13 +15,12 @@ import '../services/api_service.dart';
 import '../models/product_model.dart';
 import '../providers/user_provider.dart';
 import 'categories_page.dart';
-import 'add_product_page.dart';
 
 // HomePage
 
 class HomePage extends StatefulWidget {
   final int selectedIndex;
-  const HomePage({Key? key, this.selectedIndex = 0}) : super(key: key);
+  const HomePage({super.key, this.selectedIndex = 0});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -252,7 +250,7 @@ class _HomePageState extends State<HomePage> {
 // HomeContent
 class HomeContent extends StatefulWidget {
   final VoidCallback? onGoToCart;
-  const HomeContent({Key? key, this.onGoToCart}) : super(key: key);
+  const HomeContent({super.key, this.onGoToCart});
   @override
   State<HomeContent> createState() => _HomeContentState();
 }
@@ -1098,8 +1096,7 @@ class _TrendingProductCard extends StatefulWidget {
   final Product product;
 
   final VoidCallback? onGoToCart;
-  const _TrendingProductCard({Key? key, required this.product, this.onGoToCart})
-    : super(key: key);
+  const _TrendingProductCard({required this.product, this.onGoToCart});
 
   @override
   State<_TrendingProductCard> createState() => _TrendingProductCardState();
@@ -1300,7 +1297,7 @@ class _TrendingProductCardState extends State<_TrendingProductCard> {
 
 // Placeholder Pages
 class HistoryPage extends StatelessWidget {
-  const HistoryPage({Key? key}) : super(key: key);
+  const HistoryPage({super.key});
 
   @override
   Widget build(BuildContext context) {

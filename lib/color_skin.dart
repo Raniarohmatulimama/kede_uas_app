@@ -4,7 +4,7 @@ import 'theme_provider.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class ColorSkinPage extends StatefulWidget {
-  const ColorSkinPage({Key? key}) : super(key: key);
+  const ColorSkinPage({super.key});
 
   @override
   State<ColorSkinPage> createState() => _ColorSkinPageState();

@@ -113,7 +113,7 @@ class DataTablePage extends StatefulWidget {
 
 class _DataTablePageState extends State<DataTablePage> {
   // Hanya ambil 4 item untuk Selectable Rows, untuk simulasi pagination
-  List<Dessert> _selectableDesserts = _desserts.sublist(0, 4).toList();
+  final List<Dessert> _selectableDesserts = _desserts.sublist(0, 4).toList();
   int _rowsPerPage = 5;
 
   // State untuk Sortable Columns
@@ -121,13 +121,13 @@ class _DataTablePageState extends State<DataTablePage> {
   bool _isAscending = true; // Arah sortir awal (naik)
 
   // State untuk With Inputs
-  String _idFilter = 'Filter';
-  String _nameFilter = 'Filter';
-  String _emailFilter = 'Filter';
+  final String _idFilter = 'Filter';
+  final String _nameFilter = 'Filter';
+  final String _emailFilter = 'Filter';
   String _genderFilter = 'All'; // Nilai default dropdown
 
   // Data user (gunakan data baru)
-  List<User> _usersData = _users;
+  final List<User> _usersData = _users;
 
   // --- Widget Baru: Collapsible Table (List View) ---
   Widget _buildCollapsibleTable() {
@@ -305,7 +305,7 @@ class _DataTablePageState extends State<DataTablePage> {
     }
 
     // Widget kustom untuk meniru tampilan aksi (Add/Remove)
-    Widget _buildActionText(String text) {
+    Widget buildActionText(String text) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8.0),
         child: GestureDetector(
@@ -359,8 +359,8 @@ class _DataTablePageState extends State<DataTablePage> {
                     // Aksi di sebelah kiri
                     Row(
                       children: [
-                        _buildActionText('Add'),
-                        _buildActionText('Remove'),
+                        buildActionText('Add'),
+                        buildActionText('Remove'),
                       ],
                     ),
 
@@ -407,10 +407,10 @@ class _DataTablePageState extends State<DataTablePage> {
                       top: BorderSide.none,
                       bottom: BorderSide.none,
                     ),
-                    dataRowColor: MaterialStateProperty.resolveWith<Color>((
-                      Set<MaterialState> states,
+                    dataRowColor: WidgetStateProperty.resolveWith<Color>((
+                      Set<WidgetState> states,
                     ) {
-                      if (states.contains(MaterialState.selected)) {
+                      if (states.contains(WidgetState.selected)) {
                         return Colors.blue.withOpacity(0.1);
                       }
                       return Colors.white;
@@ -547,8 +547,8 @@ class _DataTablePageState extends State<DataTablePage> {
               top: BorderSide(color: Colors.grey.shade300, width: 1.0),
               bottom: BorderSide(color: Colors.grey.shade300, width: 1.0),
             ),
-            dataRowColor: MaterialStateProperty.resolveWith<Color>((
-              Set<MaterialState> states,
+            dataRowColor: WidgetStateProperty.resolveWith<Color>((
+              Set<WidgetState> states,
             ) {
               return Colors.white;
             }),
@@ -730,7 +730,7 @@ class _DataTablePageState extends State<DataTablePage> {
     }
 
     // Fungsi untuk membangun Header Card (berubah berdasarkan selectedCount)
-    Widget _buildHeader() {
+    Widget buildHeader() {
       if (isAnySelected) {
         // --- HEADER KETIKA ITEM DIPILIH (Selected State) ---
         return Padding(
@@ -825,7 +825,7 @@ class _DataTablePageState extends State<DataTablePage> {
           child: Column(
             children: [
               // --- PANGGIL HEADER DINAMIS ---
-              _buildHeader(),
+              buildHeader(),
 
               const Divider(height: 1, thickness: 1, color: Color(0xFFE0E0E0)),
 
@@ -850,10 +850,10 @@ class _DataTablePageState extends State<DataTablePage> {
                       top: BorderSide.none,
                       bottom: BorderSide.none,
                     ),
-                    dataRowColor: MaterialStateProperty.resolveWith<Color>((
-                      Set<MaterialState> states,
+                    dataRowColor: WidgetStateProperty.resolveWith<Color>((
+                      Set<WidgetState> states,
                     ) {
-                      if (states.contains(MaterialState.selected)) {
+                      if (states.contains(WidgetState.selected)) {
                         return Colors.blue.withOpacity(0.1);
                       }
                       return Colors.white;
@@ -1042,11 +1042,11 @@ class _DataTablePageState extends State<DataTablePage> {
                       top: BorderSide.none,
                       bottom: BorderSide.none,
                     ),
-                    dataRowColor: MaterialStateProperty.resolveWith<Color>((
-                      Set<MaterialState> states,
+                    dataRowColor: WidgetStateProperty.resolveWith<Color>((
+                      Set<WidgetState> states,
                     ) {
                       // Memberikan warna latar belakang pada baris yang dipilih (seperti di template)
-                      if (states.contains(MaterialState.selected)) {
+                      if (states.contains(WidgetState.selected)) {
                         return Colors.blue.withOpacity(0.1);
                       }
                       return Colors.white;
@@ -1274,11 +1274,11 @@ class _DataTablePageState extends State<DataTablePage> {
                       bottom:
                           BorderSide.none, // Dihapus karena ini di dalam Card
                     ),
-                    dataRowColor: MaterialStateProperty.resolveWith<Color>((
-                      Set<MaterialState> states,
+                    dataRowColor: WidgetStateProperty.resolveWith<Color>((
+                      Set<WidgetState> states,
                     ) {
                       // Memberikan warna latar belakang pada baris yang dipilih (seperti di template)
-                      if (states.contains(MaterialState.selected)) {
+                      if (states.contains(WidgetState.selected)) {
                         return Colors.blue.withOpacity(0.1);
                       }
                       return Colors.white;
@@ -1395,8 +1395,8 @@ class _DataTablePageState extends State<DataTablePage> {
           top: BorderSide(color: Colors.grey.shade300, width: 1.0),
           bottom: BorderSide(color: Colors.grey.shade300, width: 1.0),
         ),
-        dataRowColor: MaterialStateProperty.resolveWith<Color>((
-          Set<MaterialState> states,
+        dataRowColor: WidgetStateProperty.resolveWith<Color>((
+          Set<WidgetState> states,
         ) {
           return Colors.white;
         }),
@@ -1478,8 +1478,8 @@ class _DataTablePageState extends State<DataTablePage> {
               top: BorderSide.none,
               bottom: BorderSide.none,
             ),
-            dataRowColor: MaterialStateProperty.resolveWith<Color>((
-              Set<MaterialState> states,
+            dataRowColor: WidgetStateProperty.resolveWith<Color>((
+              Set<WidgetState> states,
             ) {
               return Colors.white;
             }),
@@ -1570,8 +1570,8 @@ class _DataTablePageState extends State<DataTablePage> {
               bottom: BorderSide
                   .none, // Border bottom dihilangkan karena ada footer
             ),
-            dataRowColor: MaterialStateProperty.resolveWith<Color>((
-              Set<MaterialState> states,
+            dataRowColor: WidgetStateProperty.resolveWith<Color>((
+              Set<WidgetState> states,
             ) {
               return Colors.white;
             }),
@@ -1729,8 +1729,8 @@ class _DataTablePageState extends State<DataTablePage> {
               top: BorderSide(color: Colors.grey.shade300, width: 1.0),
               bottom: BorderSide(color: Colors.grey.shade300, width: 1.0),
             ),
-            dataRowColor: MaterialStateProperty.resolveWith<Color>((
-              Set<MaterialState> states,
+            dataRowColor: WidgetStateProperty.resolveWith<Color>((
+              Set<WidgetState> states,
             ) {
               return Colors.white;
             }),
@@ -1925,8 +1925,8 @@ class _DataTablePageState extends State<DataTablePage> {
                   top: BorderSide(color: Colors.grey.shade300, width: 1.0),
                   bottom: BorderSide(color: Colors.grey.shade300, width: 1.0),
                 ),
-                dataRowColor: MaterialStateProperty.resolveWith<Color>((
-                  Set<MaterialState> states,
+                dataRowColor: WidgetStateProperty.resolveWith<Color>((
+                  Set<WidgetState> states,
                 ) {
                   return Colors.white;
                 }),
@@ -2334,7 +2334,7 @@ class AutocompletePage extends StatelessWidget {
 }
 
 class BadgePage extends StatelessWidget {
-  const BadgePage({Key? key}) : super(key: key);
+  const BadgePage({super.key});
 
   Widget _buildIconWithBadge({
     required IconData icon,
@@ -2527,7 +2527,7 @@ class BadgePage extends StatelessWidget {
 }
 
 class LazyLoadPage extends StatelessWidget {
-  const LazyLoadPage({Key? key}) : super(key: key);
+  const LazyLoadPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -2572,8 +2572,7 @@ class BadgeListItem extends StatelessWidget {
   final String name;
   final Widget badge;
 
-  const BadgeListItem({Key? key, required this.name, required this.badge})
-    : super(key: key);
+  const BadgeListItem({super.key, required this.name, required this.badge});
 
   @override
   Widget build(BuildContext context) {
@@ -2618,10 +2617,10 @@ class BadgeWidget extends StatelessWidget {
   final Color backgroundColor;
 
   const BadgeWidget({
-    Key? key,
+    super.key,
     required this.text,
     required this.backgroundColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2651,13 +2650,13 @@ class BottomNavItem extends StatelessWidget {
   final bool isSelected;
 
   const BottomNavItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.label,
     required this.badgeCount,
     required this.badgeColor,
     this.isSelected = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2721,7 +2720,7 @@ class BottomNavItem extends StatelessWidget {
 }
 
 class NotFoundPage extends StatelessWidget {
-  const NotFoundPage({Key? key}) : super(key: key);
+  const NotFoundPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -2763,7 +2762,7 @@ class NotFoundPage extends StatelessWidget {
 }
 
 class AboutPage extends StatelessWidget {
-  const AboutPage({Key? key}) : super(key: key);
+  const AboutPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -2827,7 +2826,7 @@ class AboutPage extends StatelessWidget {
 }
 
 class Framework7Page extends StatelessWidget {
-  const Framework7Page({Key? key}) : super(key: key);
+  const Framework7Page({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -3481,13 +3480,13 @@ class ComponentListItem extends StatelessWidget {
   final String? imagePath;
 
   const ComponentListItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.backgroundColor,
     this.iconColor = Colors.white,
     this.imagePath = 'assets/images/logo-icon.png',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3677,8 +3676,8 @@ class _FabMorphPageState extends State<FabMorphPage> {
           child: ScaleTransition(scale: animation, child: child),
         );
       },
-      child: _isMenuOpen ? _buildMenuLinks() : _buildDefaultFab1(),
       key: ValueKey<bool>(_isMenuOpen),
+      child: _isMenuOpen ? _buildMenuLinks() : _buildDefaultFab1(),
     );
   }
 
@@ -3700,13 +3699,13 @@ class _FabMorphPageState extends State<FabMorphPage> {
       transitionBuilder: (Widget child, Animation<double> animation) {
         // Menggunakan FadeTransition untuk transisi menghilang/muncul
         return FadeTransition(opacity: animation, child: child);
-      },
+      }, // FAB Normal (Muncul)
+      key: ValueKey<bool>(_isNavBarOpen),
       child: _isNavBarOpen
           ? const SizedBox.shrink(
               key: ValueKey<bool>(true),
             ) // Widget Kosong (Menghilang)
-          : _buildDefaultFab3(), // FAB Normal (Muncul)
-      key: ValueKey<bool>(_isNavBarOpen),
+          : _buildDefaultFab3(),
     );
   }
 
@@ -3894,7 +3893,7 @@ class _CheckboxPageState extends State<CheckboxPage> {
   bool inlineCheckbox2 = false;
 
   // State untuk indeterminate checkbox (movies)
-  bool? moviesChecked = null;
+  bool? moviesChecked;
 
   // State untuk movies child
   bool movie1Checked = true;
@@ -4370,7 +4369,7 @@ final List<Contact> _contacts = const [
 ];
 
 class ContactsListPage extends StatelessWidget {
-  const ContactsListPage({Key? key}) : super(key: key);
+  const ContactsListPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -4429,7 +4428,7 @@ class ContactsListPage extends StatelessWidget {
 }
 
 class InfiniteScrollPage extends StatefulWidget {
-  const InfiniteScrollPage({Key? key}) : super(key: key);
+  const InfiniteScrollPage({super.key});
 
   @override
   _InfiniteScrollPageState createState() => _InfiniteScrollPageState();

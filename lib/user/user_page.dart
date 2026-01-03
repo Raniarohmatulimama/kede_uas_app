@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
-import '../profile_page.dart';
 import '../notifications_page.dart';
 import '../message_page.dart';
-import '../element.dart';
-import '../welcome_screen.dart';
 import '../sign_in/sign_in_screen.dart';
 import '../color_skin.dart';
 import '../theme_provider.dart';
@@ -15,7 +12,7 @@ import '../providers/user_provider.dart';
 import 'my_profile_page_clean.dart';
 
 class ProfilePage extends StatelessWidget {
-  const ProfilePage({Key? key}) : super(key: key);
+  const ProfilePage({super.key});
   Widget _buildMenuItem(BuildContext context, String asset, String label) {
     final themeProvider = Provider.of<ThemeProvider>(context);
 

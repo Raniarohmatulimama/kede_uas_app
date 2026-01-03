@@ -31,7 +31,7 @@ class Product {
   factory Product.fromJson(Map<String, dynamic> json) {
     // Handle image URL - Firebase Storage returns full URLs
     String? imageUrl = json['image'];
-    if (imageUrl != null && imageUrl is String) {
+    if (imageUrl != null) {
       if (!imageUrl.startsWith('http')) {
         imageUrl = imageUrl;
       }

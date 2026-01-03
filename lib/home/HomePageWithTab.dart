@@ -3,7 +3,7 @@ import 'HomePage.dart';
 
 class HomePageWithTab extends StatelessWidget {
   final int selectedIndex;
-  const HomePageWithTab({Key? key, this.selectedIndex = 0}) : super(key: key);
+  const HomePageWithTab({super.key, this.selectedIndex = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -13,8 +13,7 @@ class HomePageWithTab extends StatelessWidget {
 
 class HomePageWithTabStateful extends StatefulWidget {
   final int selectedIndex;
-  const HomePageWithTabStateful({Key? key, this.selectedIndex = 0})
-    : super(key: key);
+  const HomePageWithTabStateful({super.key, this.selectedIndex = 0});
 
   @override
   State<HomePageWithTabStateful> createState() =>
@@ -29,9 +28,9 @@ class _HomePageWithTabStatefulState extends State<HomePageWithTabStateful> {
 }
 
 class HomePageWithInitialTab extends HomePage {
+  @override
   final int selectedIndex;
-  const HomePageWithInitialTab({Key? key, this.selectedIndex = 0})
-    : super(key: key);
+  const HomePageWithInitialTab({super.key, this.selectedIndex = 0});
 
   @override
   State<HomePage> createState() => _HomePageWithInitialTabState();
