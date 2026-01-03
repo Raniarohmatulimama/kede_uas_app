@@ -829,15 +829,6 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                                       );
                                     },
                                   ),
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: IconButton(
-                                      icon: const Icon(Icons.refresh),
-                                      onPressed: _loadReviewsFromFirestore,
-                                      tooltip: 'Refresh reviews',
-                                    ),
-                                  ),
                                 ],
                               ),
                             // Discussion Tab

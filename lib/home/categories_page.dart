@@ -302,13 +302,42 @@ class AllProductsPage extends StatefulWidget {
 
 class _AllProductsPageState extends State<AllProductsPage> {
   List<Product> products = [];
+  List<Product> filteredProducts = [];
   bool isLoading = true;
   String? errorMessage;
+  late TextEditingController _searchController;
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
+    _searchController.addListener(_filterProducts);
     _loadProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterProducts() {
+    final query = _searchController.text.toLowerCase().trim();
+
+    setState(() {
+      if (query.isEmpty) {
+        filteredProducts = products;
+      } else {
+        filteredProducts = products
+            .where(
+              (product) =>
+                  product.name.toLowerCase().contains(query) ||
+                  product.description.toLowerCase().contains(query) ||
+                  product.category.toLowerCase().contains(query),
+            )
+            .toList();
+      }
+    });
   }
 
   Future<void> _loadProducts() async {
@@ -389,6 +418,7 @@ class _AllProductsPageState extends State<AllProductsPage> {
               products = allProducts;
             }
 
+            filteredProducts = products;
             print('[AllProductsPage] Final product count: ${products.length}');
             isLoading = false;
           });
@@ -396,6 +426,7 @@ class _AllProductsPageState extends State<AllProductsPage> {
           print('[AllProductsPage] Data is null');
           setState(() {
             products = [];
+            filteredProducts = [];
             isLoading = false;
           });
         }
@@ -905,37 +936,52 @@ class _AllProductsPageState extends State<AllProductsPage> {
                         // Search Bar
                         Padding(
                           padding: const EdgeInsets.all(20.0),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 2),
+                          child: ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: _searchController,
+                            builder: (context, value, child) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: 'Search here',
-                                hintStyle: TextStyle(
-                                  color: Colors.grey.shade400,
-                                  fontSize: 15,
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search here',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 15,
+                                    ),
+                                    prefixIcon: Icon(
+                                      Icons.search,
+                                      color: Colors.grey.shade400,
+                                      size: 24,
+                                    ),
+                                    suffixIcon: value.text.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(Icons.clear),
+                                            color: Colors.grey.shade400,
+                                            onPressed: () {
+                                              _searchController.clear();
+                                            },
+                                          )
+                                        : null,
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                  ),
                                 ),
-                                prefixIcon: Icon(
-                                  Icons.search,
-                                  color: Colors.grey.shade400,
-                                  size: 24,
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 14,
-                                ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                         ),
 
@@ -1008,6 +1054,35 @@ class _AllProductsPageState extends State<AllProductsPage> {
                                     ],
                                   ),
                                 )
+                              : filteredProducts.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.search_off,
+                                        size: 64,
+                                        color: Colors.grey.shade400,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No products found',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Try a different search',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade500,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
                               : Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 20.0,
@@ -1020,9 +1095,9 @@ class _AllProductsPageState extends State<AllProductsPage> {
                                           crossAxisSpacing: 16,
                                           mainAxisSpacing: 16,
                                         ),
-                                    itemCount: products.length,
+                                    itemCount: filteredProducts.length,
                                     itemBuilder: (context, index) {
-                                      final product = products[index];
+                                      final product = filteredProducts[index];
                                       return _ProductCard(
                                         product: product,
                                         onTap: () {

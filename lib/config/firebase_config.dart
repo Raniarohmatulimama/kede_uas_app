@@ -36,6 +36,7 @@ class FirebaseConfig {
   static const String productsCollection = 'products';
   static const String cartsCollection = 'carts';
   static const String ordersCollection = 'orders';
+  static const String chatsCollection = 'chats';
   static const String wishlistCollection = 'wishlist';
 
   // Storage buckets
