@@ -25,7 +25,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
   final _stockController = TextEditingController();
 
   String _selectedCategory = 'Fruits';
-  File? _imageFile;
+  List<File> _imageFiles = [];
   bool _isLoading = false;
 
   final List<String> _categories = [
@@ -47,6 +47,8 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
       _priceController.text = widget.product!.price.toString();
       _stockController.text = widget.product!.stock.toString();
       _selectedCategory = widget.product!.category;
+      // Jika edit dan ada imageUrls, tidak perlu load file, hanya untuk preview
+      // _imageFiles akan tetap kosong, preview dari network
     }
   }
 
@@ -105,22 +107,20 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                   );
                   if (image != null) {
                     setState(() {
-                      _imageFile = File(image.path);
+                      _imageFiles.add(File(image.path));
                     });
                   }
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library),
-                title: const Text('Choose from Gallery'),
+                title: const Text('Choose Multiple from Gallery'),
                 onTap: () async {
                   Navigator.pop(context);
-                  final XFile? image = await picker.pickImage(
-                    source: ImageSource.gallery,
-                  );
-                  if (image != null) {
+                  final List<XFile>? images = await picker.pickMultiImage();
+                  if (images != null && images.isNotEmpty) {
                     setState(() {
-                      _imageFile = File(image.path);
+                      _imageFiles.addAll(images.map((x) => File(x.path)));
                     });
                   }
                 },
@@ -185,7 +185,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
           price: price,
           category: _selectedCategory,
           stock: stock,
-          imageFile: _imageFile,
+          imageFiles: _imageFiles,
         );
       } else {
         // Update existing product
@@ -196,7 +196,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
           price: price,
           category: _selectedCategory,
           stock: stock,
-          imageFile: _imageFile,
+          imageFiles: _imageFiles,
         );
       }
 
@@ -311,13 +311,13 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Image Picker
+                        // Multi Image Picker Preview
                         Center(
                           child: GestureDetector(
                             onTap: _pickImage,
                             child: Container(
                               width: double.infinity,
-                              height: 200,
+                              height: 120,
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade100,
                                 borderRadius: BorderRadius.circular(12),
@@ -326,26 +326,72 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                   width: 2,
                                 ),
                               ),
-                              child: _imageFile != null
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Image.file(
-                                        _imageFile!,
-                                        fit: BoxFit.cover,
+                              child: _imageFiles.isNotEmpty
+                                  ? ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _imageFiles.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(width: 8),
+                                      itemBuilder: (context, idx) => Stack(
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            child: Image.file(
+                                              _imageFiles[idx],
+                                              width: 120,
+                                              height: 120,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                          Positioned(
+                                            top: 4,
+                                            right: 4,
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                setState(() {
+                                                  _imageFiles.removeAt(idx);
+                                                });
+                                              },
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black54,
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.close,
+                                                  color: Colors.white,
+                                                  size: 20,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     )
-                                  : widget.product?.imageUrl != null
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Image.network(
-                                        ApiConfig.assetUrl(
-                                          widget.product!.imageUrl!,
+                                  : (widget.product?.imageUrls != null &&
+                                        widget.product!.imageUrls!.isNotEmpty)
+                                  ? ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount:
+                                          widget.product!.imageUrls!.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(width: 8),
+                                      itemBuilder: (context, idx) => ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.network(
+                                          ApiConfig.assetUrl(
+                                            widget.product!.imageUrls![idx],
+                                          ),
+                                          width: 120,
+                                          height: 120,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  _buildPlaceholder(),
                                         ),
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                              return _buildPlaceholder();
-                                            },
                                       ),
                                     )
                                   : _buildPlaceholder(),
