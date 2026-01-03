@@ -4,7 +4,8 @@ class Product {
   final String description;
   final double price;
   final String? imageUrl;
-  final String? imagePublicId; // ✅ NEW: Cloudinary public ID
+  final List<String>? imageUrls; 
+  final String? imagePublicId; 
   final String category;
   final int stock;
   final bool isFavorite;
@@ -17,7 +18,8 @@ class Product {
     required this.description,
     required this.price,
     this.imageUrl,
-    this.imagePublicId, // ✅ NEW: Cloudinary public ID
+    this.imageUrls,
+    this.imagePublicId, 
     required this.category,
     required this.stock,
     this.isFavorite = false,
@@ -31,11 +33,22 @@ class Product {
     String? imageUrl = json['image'];
     if (imageUrl != null && imageUrl is String) {
       if (!imageUrl.startsWith('http')) {
-        // This shouldn't happen with Firebase Storage, but just in case
         imageUrl = imageUrl;
       }
     } else if (json['image_url'] != null) {
       imageUrl = json['image_url'] as String?;
+    }
+
+    // Multi image support
+    List<String>? imageUrls;
+    if (json['imageUrls'] != null) {
+      if (json['imageUrls'] is List) {
+        imageUrls = (json['imageUrls'] as List).whereType<String>().toList();
+      } else if (json['imageUrls'] is List<dynamic>) {
+        imageUrls = (json['imageUrls'] as List<dynamic>)
+            .map((e) => e.toString())
+            .toList();
+      }
     }
 
     // Handle timestamp
@@ -58,6 +71,7 @@ class Product {
           ? double.tryParse(json['price']) ?? 0.0
           : (json['price'] as num?)?.toDouble() ?? 0.0,
       imageUrl: imageUrl,
+      imageUrls: imageUrls,
       imagePublicId:
           json['image_public_id'] as String?, // ✅ NEW: Cloudinary public ID
       category: json['category'] as String? ?? 'Other',
@@ -76,6 +90,7 @@ class Product {
       'description': description,
       'price': price,
       if (imageUrl != null) 'image': imageUrl,
+      if (imageUrls != null && imageUrls!.isNotEmpty) 'imageUrls': imageUrls,
       if (imagePublicId != null) 'image_public_id': imagePublicId, // ✅ NEW
       'category': category,
       'stock': stock,
@@ -92,6 +107,7 @@ class Product {
     String? description,
     double? price,
     String? imageUrl,
+    List<String>? imageUrls,
     String? imagePublicId, // ✅ NEW
     String? category,
     int? stock,
@@ -105,6 +121,7 @@ class Product {
       description: description ?? this.description,
       price: price ?? this.price,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       imagePublicId: imagePublicId ?? this.imagePublicId, // ✅ NEW
       category: category ?? this.category,
       stock: stock ?? this.stock,
