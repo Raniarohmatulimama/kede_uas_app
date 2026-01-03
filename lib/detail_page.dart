@@ -61,6 +61,133 @@ class ProductDetailPage extends StatefulWidget {
 
 class _ProductDetailPageState extends State<ProductDetailPage>
     with SingleTickerProviderStateMixin {
+  // Discussion State
+  List<Map<String, dynamic>> discussionComments = [];
+  final TextEditingController _discussionController = TextEditingController();
+  String? editingCommentId;
+  String? editingCommentText;
+  bool isLoadingDiscussion = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadDiscussionComments();
+  }
+
+  Future<void> _loadDiscussionComments() async {
+    setState(() => isLoadingDiscussion = true);
+    try {
+      final db = FirebaseFirestore.instance;
+      final querySnapshot = await db
+          .collection('products')
+          .doc(product.id)
+          .collection('comments')
+          .orderBy('createdAt', descending: true)
+          .get();
+      setState(() {
+        discussionComments = querySnapshot.docs
+            .map((doc) => {...doc.data(), 'id': doc.id})
+            .toList();
+      });
+    } catch (e) {
+      print('Error loading discussion: $e');
+    }
+    setState(() => isLoadingDiscussion = false);
+  }
+
+  Future<void> _addOrEditDiscussionComment() async {
+    final userId = AuthService.currentUserId;
+    if (userId == null || userId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Login untuk berkomentar!'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const SignInScreen()));
+      return;
+    }
+    final text = _discussionController.text.trim();
+    if (text.isEmpty) return;
+    final db = FirebaseFirestore.instance;
+    try {
+      // Ambil data user dari Firestore
+      final userDoc = await db.collection('users').doc(userId).get();
+      final userData = userDoc.data();
+      final displayName = userData != null
+          ? ((userData['first_name'] ?? '') +
+                    ' ' +
+                    (userData['last_name'] ?? ''))
+                .trim()
+          : 'Anonymous';
+      final avatar = userData != null
+          ? (userData['profile_photo_url'] ?? '')
+          : '';
+      final commentsRef = db
+          .collection('products')
+          .doc(product.id)
+          .collection('comments');
+      if (editingCommentId != null) {
+        // Edit
+        await commentsRef.doc(editingCommentId).update({
+          'comment': text,
+          'editedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Add
+        await commentsRef.add({
+          'userId': userId,
+          'displayName': displayName.isNotEmpty ? displayName : 'Anonymous',
+          'avatar': avatar,
+          'comment': text,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      _discussionController.clear();
+      editingCommentId = null;
+      editingCommentText = null;
+      await _loadDiscussionComments();
+    } catch (e) {
+      print('Error add/edit discussion: $e');
+    }
+  }
+
+  Future<void> _deleteDiscussionComment(String commentId) async {
+    final db = FirebaseFirestore.instance;
+    try {
+      await db
+          .collection('products')
+          .doc(product.id)
+          .collection('comments')
+          .doc(commentId)
+          .delete();
+      await _loadDiscussionComments();
+    } catch (e) {
+      print('Error delete discussion: $e');
+    }
+  }
+
+  void _startEditComment(String commentId, String commentText) {
+    setState(() {
+      editingCommentId = commentId;
+      editingCommentText = commentText;
+      _discussionController.text = commentText;
+    });
+  }
+
+  void _cancelEditComment() {
+    setState(() {
+      editingCommentId = null;
+      editingCommentText = null;
+      _discussionController.clear();
+    });
+  }
+
+  int get effectiveReviewCount =>
+      productReviews.isNotEmpty ? productReviews.length : 0;
+
   int quantity = 1;
   late TabController _tabController;
   bool isFavorite = false;
@@ -225,8 +352,8 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     return 0.0;
   }
 
-  int get effectiveReviewCount =>
-      productReviews.isNotEmpty ? productReviews.length : 0;
+  final displayName = AuthService.currentUser?.displayName ?? 'Anonymous';
+  final avatar = AuthService.currentUser?.photoURL ?? '';
 
   List<String> get reviewerAvatars =>
       productReviews.take(3).map((review) => review.avatar).toList();
@@ -832,16 +959,268 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                                 ],
                               ),
                             // Discussion Tab
-                            SingleChildScrollView(
-                              child: Padding(
-                                padding: EdgeInsets.all(24.0),
-                                child: Text(
-                                  'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\neiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey,
-                                  ),
-                                ),
+                            Container(
+                              color: Colors.white,
+                              child: Column(
+                                children: [
+                                  if (isLoadingDiscussion)
+                                    const Padding(
+                                      padding: EdgeInsets.all(24.0),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    )
+                                  else ...[
+                                    Expanded(
+                                      child: discussionComments.isEmpty
+                                          ? Center(
+                                              child: Text(
+                                                'Belum ada diskusi. Jadilah yang pertama! ',
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            )
+                                          : ListView.separated(
+                                              padding: const EdgeInsets.all(16),
+                                              itemCount:
+                                                  discussionComments.length,
+                                              separatorBuilder: (_, __) =>
+                                                  const Divider(),
+                                              itemBuilder: (context, idx) {
+                                                final c =
+                                                    discussionComments[idx];
+                                                final isOwn =
+                                                    AuthService.currentUserId ==
+                                                    c['userId'];
+                                                return ListTile(
+                                                  leading: CircleAvatar(
+                                                    backgroundImage:
+                                                        (c['avatar'] ?? '')
+                                                            .toString()
+                                                            .startsWith('http')
+                                                        ? NetworkImage(
+                                                            c['avatar'] ?? '',
+                                                          )
+                                                        : null,
+                                                    child:
+                                                        (c['avatar'] ?? '')
+                                                            .toString()
+                                                            .isEmpty
+                                                        ? Icon(
+                                                            Icons.person,
+                                                            color: Colors.grey,
+                                                          )
+                                                        : null,
+                                                  ),
+                                                  title: Row(
+                                                    children: [
+                                                      Text(
+                                                        c['displayName'] ??
+                                                            'Anonymous',
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                      if (isOwn)
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                left: 6,
+                                                              ),
+                                                          child: Container(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal: 6,
+                                                                  vertical: 2,
+                                                                ),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                                  color: Colors
+                                                                      .green[50],
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        6,
+                                                                      ),
+                                                                ),
+                                                            child: const Text(
+                                                              'Anda',
+                                                              style: TextStyle(
+                                                                fontSize: 10,
+                                                                color: Colors
+                                                                    .green,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                  subtitle: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        c['comment'] ?? '',
+                                                        style: TextStyle(
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        c['createdAt'] !=
+                                                                    null &&
+                                                                c['createdAt']
+                                                                    is Timestamp
+                                                            ? _formatDate(
+                                                                (c['createdAt']
+                                                                        as Timestamp)
+                                                                    .toDate(),
+                                                              )
+                                                            : '',
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color:
+                                                              Colors.grey[500],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  trailing: isOwn
+                                                      ? Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: [
+                                                            IconButton(
+                                                              icon: const Icon(
+                                                                Icons.edit,
+                                                                size: 20,
+                                                                color:
+                                                                    Colors.blue,
+                                                              ),
+                                                              onPressed: () =>
+                                                                  _startEditComment(
+                                                                    c['id'],
+                                                                    c['comment'],
+                                                                  ),
+                                                              tooltip: 'Edit',
+                                                            ),
+                                                            IconButton(
+                                                              icon: const Icon(
+                                                                Icons.delete,
+                                                                size: 20,
+                                                                color:
+                                                                    Colors.red,
+                                                              ),
+                                                              onPressed: () =>
+                                                                  _deleteDiscussionComment(
+                                                                    c['id'],
+                                                                  ),
+                                                              tooltip: 'Hapus',
+                                                            ),
+                                                          ],
+                                                        )
+                                                      : null,
+                                                );
+                                              },
+                                            ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    if (AuthService.currentUserId != null &&
+                                        AuthService.currentUserId!.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextField(
+                                                controller:
+                                                    _discussionController,
+                                                decoration: InputDecoration(
+                                                  hintText:
+                                                      editingCommentId != null
+                                                      ? 'Edit komentar...'
+                                                      : 'Tulis komentar...',
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 8,
+                                                      ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            if (editingCommentId != null)
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.close,
+                                                  color: Colors.grey,
+                                                ),
+                                                onPressed: _cancelEditComment,
+                                                tooltip: 'Batal',
+                                              ),
+                                            IconButton(
+                                              icon: Icon(
+                                                editingCommentId != null
+                                                    ? Icons.check
+                                                    : Icons.send,
+                                                color: Colors.green,
+                                              ),
+                                              onPressed:
+                                                  _addOrEditDiscussionComment,
+                                              tooltip: editingCommentId != null
+                                                  ? 'Simpan'
+                                                  : 'Kirim',
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                'Login untuk ikut berdiskusi',
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (_) =>
+                                                          const SignInScreen(),
+                                                    ),
+                                                  ),
+                                              child: const Text(
+                                                'Login',
+                                                style: TextStyle(
+                                                  color: Colors.green,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ],
                               ),
                             ),
                           ],
