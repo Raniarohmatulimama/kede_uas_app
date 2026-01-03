@@ -192,6 +192,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   late TabController _tabController;
   bool isFavorite = false;
   late Product product;
+  late List<String> imageUrls;
   late List<Review> productReviews;
 
   @override
@@ -210,6 +211,13 @@ class _ProductDetailPageState extends State<ProductDetailPage>
           price: 4.9,
           stock: 0,
         );
+    // Ambil list gambar dari produk, fallback ke 1 gambar jika tidak ada
+    imageUrls =
+        (widget.product != null &&
+            widget.product!.imageUrls != null &&
+            widget.product!.imageUrls!.isNotEmpty)
+        ? widget.product!.imageUrls!
+        : [product.imageUrl ?? 'assets/images/orange.jpg'];
     productReviews = widget.reviews ?? [];
     _checkIfInWishlist();
     _loadReviewsFromFirestore();
@@ -478,6 +486,10 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     }
   }
 
+  // Untuk page controller carousel gambar
+  int _currentImageIndex = 0;
+  late PageController _pageController = PageController();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -518,10 +530,24 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      product.imageUrl != null &&
-                              product.imageUrl!.startsWith('http')
-                          ? Image.network(
-                              product.imageUrl!,
+                      PageView.builder(
+                        controller: _pageController,
+                        itemCount: imageUrls.length,
+                        onPageChanged: (index) {
+                          // setState di FlexibleSpaceBar tidak bisa langsung, gunakan addPostFrameCallback
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              setState(() {
+                                _currentImageIndex = index;
+                              });
+                            }
+                          });
+                        },
+                        itemBuilder: (context, index) {
+                          final url = imageUrls[index];
+                          if (url.startsWith('http')) {
+                            return Image.network(
+                              url,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
@@ -533,9 +559,10 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                                   ),
                                 );
                               },
-                            )
-                          : Image.asset(
-                              product.imageUrl ?? 'assets/images/orange.jpg',
+                            );
+                          } else {
+                            return Image.asset(
+                              url,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
@@ -547,7 +574,10 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                                   ),
                                 );
                               },
-                            ),
+                            );
+                          }
+                        },
+                      ),
                       // Page Indicators
                       Positioned(
                         bottom: 20,
@@ -555,34 +585,21 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                         right: 0,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 30,
+                          children: List.generate(
+                            imageUrls.length,
+                            (index) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: _currentImageIndex == index ? 30 : 8,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: _currentImageIndex == index
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.5),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            Container(
-                              width: 8,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.5),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              width: 8,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.5),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ],
