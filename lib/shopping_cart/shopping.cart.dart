@@ -173,38 +173,67 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
           child: Container(color: Colors.grey.shade200, height: 1.0),
         ),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        itemCount: cartItems.length,
-        itemBuilder: (context, index) {
-          final item = cartItems[index];
-          return Dismissible(
-            key: Key(item.id),
-            direction: DismissDirection.endToStart,
-            onDismissed: (direction) {
-              removeItem(item.id);
-            },
-            background: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(16),
+      body: cartItems.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.shopping_cart_outlined,
+                    size: 80,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Keranjang Anda Kosong',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Yuk, mulai belanja dan temukan produk favoritmu!\nKlik ikon Home untuk menjelajah.',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.white,
-                size: 28,
-              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              itemCount: cartItems.length,
+              itemBuilder: (context, index) {
+                final item = cartItems[index];
+                return Dismissible(
+                  key: Key(item.id),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (direction) {
+                    removeItem(item.id);
+                  },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  child: CartItemWidget(
+                    item: item,
+                    onQuantityChanged: (change) =>
+                        updateQuantity(item.id, change),
+                  ),
+                );
+              },
             ),
-            child: CartItemWidget(
-              item: item,
-              onQuantityChanged: (change) => updateQuantity(item.id, change),
-            ),
-          );
-        },
-      ),
       // Cegah double bottom nav: hanya render jika showBottomNavBar true
       bottomNavigationBar: widget.showBottomNavBar
           ? Container(
