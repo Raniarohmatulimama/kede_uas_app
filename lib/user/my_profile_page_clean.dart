@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
@@ -21,19 +23,29 @@ class MyProfilePage extends StatefulWidget {
   State<MyProfilePage> createState() => _MyProfilePageState();
 }
 
-class _MyProfilePageState extends State<MyProfilePage> {
+class _MyProfilePageState extends State<MyProfilePage>
+    with WidgetsBindingObserver {
   final TextEditingController _phoneController = TextEditingController();
   String? _photoPath;
   String _firstName = '';
   String _lastName = '';
   String _email = '';
+  String _shippingAddress = 'Not set';
   bool _isLoading = true;
   bool _isEditingPhone = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkLoginAndLoadData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _phoneController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkLoginAndLoadData() async {
@@ -130,12 +142,6 @@ class _MyProfilePageState extends State<MyProfilePage> {
     _loadUserData();
   }
 
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadUserData() async {
     // Muat data cache lebih dulu supaya UI tidak kosong saat fetch API.
     final cachedFirst = await AuthService.getFirstName() ?? '';
@@ -144,12 +150,22 @@ class _MyProfilePageState extends State<MyProfilePage> {
     final cachedPhone = await AuthService.getPhone() ?? '';
     final cachedPhoto = await AuthService.getPhoto();
 
+    // Load shipping address dari SharedPreferences
+    final currentUser = AuthService.currentUser;
+    String shippingAddr = 'Not set';
+    if (currentUser != null) {
+      final prefs = await SharedPreferences.getInstance();
+      shippingAddr =
+          prefs.getString('shipping_address_${currentUser.uid}') ?? 'Not set';
+    }
+
     setState(() {
       _firstName = cachedFirst;
       _lastName = cachedLast;
       _email = cachedEmail;
       _phoneController.text = cachedPhone;
       _photoPath = cachedPhoto;
+      _shippingAddress = shippingAddr;
     });
 
     // Jika data cache kosong, ambil dari Firebase Auth current user
@@ -205,6 +221,32 @@ class _MyProfilePageState extends State<MyProfilePage> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  // Refresh shipping address ketika halaman di-focus kembali
+  Future<void> _refreshShippingAddress() async {
+    final currentUser = AuthService.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final shippingAddr =
+          prefs.getString('shipping_address_${currentUser.uid}') ?? 'Not set';
+      if (mounted) {
+        setState(() {
+          _shippingAddress = shippingAddr;
+        });
+      }
+    } catch (e) {
+      print('[Profile] Error refreshing shipping address: $e');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshShippingAddress();
     }
   }
 
@@ -347,6 +389,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
     if (result['success'] == true) {
       final newPhoto = result['photo'] as String? ?? file.path;
       await AuthService.savePhoto(newPhoto);
+
+      // Sinkronkan ke provider supaya UI lain langsung update
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      userProvider.updateUserData(photoPath: newPhoto);
+
       if (!mounted) return;
       setState(() => _photoPath = newPhoto);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -801,13 +848,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'User',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                _buildUserIdChip(AuthService.currentUserId),
                 const SizedBox(height: 20),
                 Divider(color: Colors.grey.shade300, thickness: 1),
                 const SizedBox(height: 4),
@@ -852,7 +893,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   userProvider.email.isEmpty ? 'No email' : userProvider.email,
                 ),
                 Divider(color: Colors.grey.shade200, height: 10),
-                _buildInfoRow('Shipping Address', 'Not set'),
+                _buildInfoRow('Shipping Address', _shippingAddress),
                 Divider(color: Colors.grey.shade200, height: 10),
                 _buildInfoRow(
                   'Total Order',
@@ -865,6 +906,50 @@ class _MyProfilePageState extends State<MyProfilePage> {
           bottomNavigationBar: _buildBottomNav(context),
         );
       },
+    );
+  }
+
+  Widget _buildUserIdChip(String? userId) {
+    final value = userId ?? '-';
+    final isCopyable = userId != null && userId.isNotEmpty;
+
+    return GestureDetector(
+      onTap: !isCopyable
+          ? null
+          : () async {
+              await Clipboard.setData(ClipboardData(text: value));
+              if (!mounted) return;
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('User ID disalin')));
+            },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.key, size: 18, color: Colors.black54),
+            const SizedBox(width: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (isCopyable) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.copy, size: 16, color: Colors.black54),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -950,29 +1035,10 @@ class _MyProfilePageState extends State<MyProfilePage> {
       },
       child: Container(
         padding: const EdgeInsets.all(12),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? const Color(0xFF4CB32B)
-                  : Colors.grey.shade400,
-              size: 28,
-            ),
-            Positioned(
-              right: -2,
-              top: -2,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF4CB32B),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
+        child: Icon(
+          icon,
+          color: isSelected ? const Color(0xFF4CB32B) : Colors.grey.shade400,
+          size: 28,
         ),
       ),
     );

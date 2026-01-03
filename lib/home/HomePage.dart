@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/api_config.dart';
 import '../shopping_cart/shopping.cart.dart';
 import '../wishlist/WishlistPage.dart';
@@ -43,6 +44,11 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _selectedIndex = widget.selectedIndex;
+    // Sync user data (termasuk photo) saat halaman dibuka
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      userProvider.loadUserData();
+    });
     _loadPhoto();
     _pages = [
       HomeContent(onGoToCart: goToCartTab),
@@ -179,38 +185,41 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildProfileNavItem(int index) {
     final isSelected = _selectedIndex == index;
-    return InkWell(
-      onTap: () async {
-        setState(() {
-          _selectedIndex = index;
-        });
-        // Reload foto setelah kembali dari halaman profile
-        await Future.delayed(const Duration(milliseconds: 100));
-        _loadPhoto();
+    return Consumer<UserProvider>(
+      builder: (context, userProvider, _) {
+        final photoPath = userProvider.photoPath;
+
+        return InkWell(
+          onTap: () async {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: isSelected
+                  ? Border.all(color: const Color(0xFF4CB32B), width: 2)
+                  : null,
+            ),
+            child: photoPath != null && photoPath.isNotEmpty
+                ? CircleAvatar(
+                    radius: 18,
+                    backgroundImage: _getPhotoProvider(photoPath),
+                  )
+                : CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.grey.shade300,
+                    child: Icon(
+                      Icons.person,
+                      color: Colors.grey.shade600,
+                      size: 20,
+                    ),
+                  ),
+          ),
+        );
       },
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: isSelected
-              ? Border.all(color: const Color(0xFF4CB32B), width: 2)
-              : null,
-        ),
-        child: _photoPath != null && _photoPath!.isNotEmpty
-            ? CircleAvatar(
-                radius: 18,
-                backgroundImage: _getPhotoProvider(_photoPath!),
-              )
-            : CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.grey.shade300,
-                child: Icon(
-                  Icons.person,
-                  color: Colors.grey.shade600,
-                  size: 20,
-                ),
-              ),
-      ),
     );
   }
 
@@ -356,32 +365,69 @@ class _HomeContentState extends State<HomeContent> {
                       );
                     },
                   ),
-                  Stack(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.notifications),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const NotificationsPage(),
-                            ),
+                  Builder(
+                    builder: (context) {
+                      final userId = AuthService.currentUserId;
+                      if (userId == null) {
+                        return IconButton(
+                          icon: const Icon(Icons.notifications),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const NotificationsPage(),
+                              ),
+                            );
+                          },
+                        );
+                      }
+
+                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection('orders')
+                            .where('userId', isEqualTo: userId)
+                            .where('seen', isEqualTo: false)
+                            .limit(1)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          final hasNew =
+                              snapshot.hasData &&
+                              snapshot.data != null &&
+                              snapshot.data!.docs.isNotEmpty;
+
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.notifications),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const NotificationsPage(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              if (hasNew)
+                                Positioned(
+                                  right: 12,
+                                  top: 12,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           );
                         },
-                      ),
-                      Positioned(
-                        right: 12,
-                        top: 12,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ],
               ),

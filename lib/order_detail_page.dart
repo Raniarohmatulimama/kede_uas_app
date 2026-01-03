@@ -6,11 +6,13 @@ import 'ReviewPage.dart';
 
 class OrderDetailPage extends StatefulWidget {
   final String orderId;
+  final bool showNotification;
   final bool fromNotification;
 
   const OrderDetailPage({
     Key? key,
     required this.orderId,
+    this.showNotification = false,
     this.fromNotification = false,
   }) : super(key: key);
 
@@ -18,8 +20,341 @@ class OrderDetailPage extends StatefulWidget {
   State<OrderDetailPage> createState() => _OrderDetailPageState();
 }
 
-class _OrderDetailPageState extends State<OrderDetailPage> {
+class _OrderDetailPageState extends State<OrderDetailPage>
+    with SingleTickerProviderStateMixin {
   bool _statusUpdated = false;
+  bool _notificationShown = false;
+  bool _notificationTapped = false;
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // Inisialisasi animation controller
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(
+          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+        );
+
+    // Tampilkan notifikasi hanya jika dibuka langsung dari payment
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.showNotification && !_notificationShown) {
+        _showPaymentNotification();
+        _notificationShown = true;
+      }
+
+      // Update seen ke true hanya jika dibuka dari notification page
+      if (widget.fromNotification) {
+        _markNotificationAsSeen();
+      }
+    });
+  }
+
+  Future<void> _markNotificationAsSeen() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(widget.orderId)
+          .update({'seen': true, 'updatedAt': FieldValue.serverTimestamp()});
+    } catch (e) {
+      // Silent fail, jangan perlu menampilkan error ke user
+      print('Error marking notification as seen: $e');
+    }
+  }
+
+  Future<void> _handleNotificationTap(String orderId) async {
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFF4CB32B),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Memproses pesanan...',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      // Update status pesanan ke 'shipped'
+      await FirebaseFirestore.instance.collection('orders').doc(orderId).update(
+        {'orderStatus': 'shipped', 'updatedAt': FieldValue.serverTimestamp()},
+      );
+
+      // Tunggu sebentar agar user bisa lihat loading
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (mounted) {
+        // Close loading dialog
+        Navigator.pop(context);
+
+        // Mark notification as seen
+        _markNotificationAsSeen();
+
+        // Set flag dan trigger UI update
+        setState(() {
+          _notificationTapped = true;
+          _statusUpdated = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showCompletionNotification() {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        child: Material(
+          color: Colors.transparent,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: GestureDetector(
+              onTap: () {
+                overlayEntry.remove();
+              },
+              child: Container(
+                margin: const EdgeInsets.only(top: 60, left: 12, right: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade300, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade600,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Pesanan Anda telah selesai!',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Terima kasih telah berbelanja di KEDE!',
+                            style: TextStyle(
+                              color: Colors.green.shade600,
+                              fontSize: 12,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+
+    // Reset animation controller untuk notifikasi baru
+    _animationController.reset();
+    _animationController.forward();
+
+    // Auto remove setelah 2.5 detik dengan animasi slide up (total 3 detik dengan animasi)
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (overlayEntry.mounted) {
+        _animationController.reverse().then((_) {
+          overlayEntry.remove();
+        });
+      }
+    });
+  }
+
+  void _showPaymentNotification() {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        child: Material(
+          color: Colors.transparent,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: GestureDetector(
+              onTap: () {
+                overlayEntry.remove();
+                // Handle tap dengan loading
+                _handleNotificationTap(widget.orderId);
+              },
+              child: Container(
+                margin: const EdgeInsets.only(top: 60, left: 12, right: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade300, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade600,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.local_shipping,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Pesanan akan segera diantar!',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Terima kasih telah berbelanja. Klik untuk melihat detail pesanan dan konfirmasi penerimaan.',
+                            style: TextStyle(
+                              color: Colors.green.shade600,
+                              fontSize: 12,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+
+    // Mulai animasi slide down
+    _animationController.forward();
+
+    // Auto remove setelah 5 detik dengan animasi slide up
+    Future.delayed(const Duration(seconds: 5), () {
+      if (overlayEntry.mounted) {
+        _animationController.reverse().then((_) {
+          overlayEntry.remove();
+        });
+      }
+    });
+  }
 
   Color _getStatusColor(String status) {
     switch (status) {
@@ -62,6 +397,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       default:
         return Icons.info;
     }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   @override
@@ -115,10 +456,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
           final totalPrice = (data['totalPrice'] ?? 0).toDouble();
           final canComplete = status == 'shipped';
           final showTerimaButton =
-              widget.fromNotification && status == 'shipped';
+              (widget.fromNotification || _notificationTapped) &&
+              status == 'shipped';
 
-          // Update status ke 'shipped' jika dari notifikasi dan status belum shipped/completed
-          if (widget.fromNotification &&
+          // Update status ke 'shipped' jika dari notifikasi atau tap notifikasi slide-down
+          if ((widget.fromNotification || _notificationTapped) &&
               !_statusUpdated &&
               status != 'shipped' &&
               status != 'completed') {
@@ -459,9 +801,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             });
                             if (context.mounted) {
                               Navigator.pop(context); // Close loading dialog
+                              // Tampilkan notifikasi completion
+                              _showCompletionNotification();
+
                               // Add orderId to data before passing to ReviewPage
                               final orderData = Map<String, dynamic>.from(data);
                               orderData['orderId'] = widget.orderId;
+
+                              // Langsung navigasi ke ReviewPage, notifikasi tetap muncul 4 detik
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(

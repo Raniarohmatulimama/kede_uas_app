@@ -186,7 +186,7 @@ class _ReviewPageState extends State<ReviewPage> {
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20),
                     child: Text(
-                      'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod',
+                      'Terima kasih telah berbelanja di KEDE! Bagikan pengalaman Anda dengan produk ini. Rating dan ulasan Anda sangat berharga bagi kami.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,

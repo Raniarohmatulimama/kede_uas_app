@@ -110,14 +110,6 @@ class _ProfilePageDetailState extends State<ProfilePageDetail> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Member',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
                   const SizedBox(height: 14),
                   Text(
                     userProvider.email.isNotEmpty

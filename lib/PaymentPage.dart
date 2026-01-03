@@ -187,6 +187,216 @@ class _PaymentPageState extends State<PaymentPage> {
     super.dispose();
   }
 
+  void _showPaymentSuccessDialog(BuildContext context, String orderId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.green.shade50, Colors.white],
+              ),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade600.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: Colors.green.shade600,
+                    size: 56,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Pembayaran Berhasil!',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Pesanan Anda telah berhasil dibuat',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey.shade700,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade600,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OrderDetailPage(
+                            orderId: orderId,
+                            showNotification: true,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Lihat Detail Pesanan',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward, color: Colors.white),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCODConfirmationDialog(BuildContext context, String orderId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.blue.shade50, Colors.white],
+              ),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade600.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.local_shipping,
+                    color: Colors.blue.shade600,
+                    size: 56,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Pesanan Dikonfirmasi!',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Silakan lakukan pembayaran saat barang tiba',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey.shade700,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OrderDetailPage(
+                            orderId: orderId,
+                            showNotification: true,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Lihat Detail Pesanan',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward, color: Colors.white),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showAddCardDialog() {
     // ...existing code...
     final nameController = TextEditingController();
@@ -632,6 +842,7 @@ class _PaymentPageState extends State<PaymentPage> {
       'paymentMethod': _selectedPaymentTab == 'Credit Card' ? 'Card' : 'COD',
       'orderStatus': 'processing',
       'deliveryAddress': widget.deliveryAddress,
+      'seen': false,
       'createdAt': FieldValue.serverTimestamp(),
     };
 
@@ -725,32 +936,19 @@ class _PaymentPageState extends State<PaymentPage> {
         {'orderStatus': 'confirmed', 'updatedAt': FieldValue.serverTimestamp()},
       );
 
-      if (!mounted) return;
-      final msg = _selectedPaymentTab == 'Credit Card'
-          ? 'Payment Successful'
-          : 'Please complete the payment when the order arrives';
-
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Payment'),
-          content: Text(msg),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => OrderDetailPage(orderId: orderId),
-                  ),
-                );
-              },
-              child: const Text('View Order Details'),
-            ),
-          ],
-        ),
+      // Kosongkan cart user setelah checkout sukses
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {'cart': []},
       );
+
+      if (!mounted) return;
+
+      // Tampilkan dialog konfirmasi pembayaran
+      if (_selectedPaymentTab == 'Credit Card') {
+        _showPaymentSuccessDialog(context, orderId);
+      } else if (_selectedPaymentTab == 'COD') {
+        _showCODConfirmationDialog(context, orderId);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
