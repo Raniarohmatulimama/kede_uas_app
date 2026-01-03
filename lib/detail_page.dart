@@ -8,25 +8,6 @@ import 'sign_in/sign_in_screen.dart';
 import 'models/product_model.dart';
 import 'home/HomePage.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Product Detail',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.green),
-      // Ganti home ke HomePage agar navigasi selalu lewat tab bar
-      home: HomePage(),
-    );
-  }
-}
-
 class Review {
   final String name;
   final String date;
@@ -64,13 +45,49 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   // Discussion State
   List<Map<String, dynamic>> discussionComments = [];
   final TextEditingController _discussionController = TextEditingController();
+  final FocusNode _discussionFocusNode = FocusNode();
   String? editingCommentId;
   String? editingCommentText;
+  String? replyToCommentId;
+  String? replyToUserName;
   bool isLoadingDiscussion = false;
 
+  int quantity = 1;
+  late TabController _tabController;
+  bool isFavorite = false;
+  late Product product;
+  late List<String> imageUrls;
+  late List<Review> productReviews;
+
+  int get effectiveReviewCount =>
+      productReviews.isNotEmpty ? productReviews.length : 0;
+
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    product =
+        widget.product ??
+        Product(
+          id: 'default-product',
+          name: 'Fresh Orange',
+          category: 'FRUITS',
+          imageUrl: 'assets/images/orange.jpg',
+          description:
+              'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.',
+          price: 4.9,
+          stock: 0,
+        );
+    // Ambil list gambar dari produk, fallback ke 1 gambar jika tidak ada
+    imageUrls =
+        (widget.product != null &&
+            widget.product!.imageUrls != null &&
+            widget.product!.imageUrls!.isNotEmpty)
+        ? widget.product!.imageUrls!
+        : [product.imageUrl ?? 'assets/images/orange.jpg'];
+    productReviews = widget.reviews ?? [];
+    _checkIfInWishlist();
+    _loadReviewsFromFirestore();
     _loadDiscussionComments();
   }
 
@@ -78,29 +95,37 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     setState(() => isLoadingDiscussion = true);
     try {
       final db = FirebaseFirestore.instance;
-      final querySnapshot = await db
+      final snap = await db
           .collection('products')
           .doc(product.id)
           .collection('comments')
-          .orderBy('createdAt', descending: true)
+          .orderBy('createdAt', descending: false)
           .get();
-      setState(() {
-        discussionComments = querySnapshot.docs
-            .map((doc) => {...doc.data(), 'id': doc.id})
-            .toList();
-      });
+      if (mounted) {
+        setState(() {
+          discussionComments = snap.docs
+              .map((d) => {...d.data(), 'id': d.id})
+              .toList();
+        });
+      }
     } catch (e) {
-      print('Error loading discussion: $e');
+      print('Error load discussion: $e');
+    } finally {
+      if (mounted) {
+        setState(() => isLoadingDiscussion = false);
+      }
     }
-    setState(() => isLoadingDiscussion = false);
   }
 
   Future<void> _addOrEditDiscussionComment() async {
+    final text = _discussionController.text.trim();
+    if (text.isEmpty) return;
+
     final userId = AuthService.currentUserId;
     if (userId == null || userId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Login untuk berkomentar!'),
+          content: Text('Anda harus login untuk berdiskusi'),
           backgroundColor: Colors.red,
         ),
       );
@@ -109,45 +134,92 @@ class _ProductDetailPageState extends State<ProductDetailPage>
       ).push(MaterialPageRoute(builder: (_) => const SignInScreen()));
       return;
     }
-    final text = _discussionController.text.trim();
-    if (text.isEmpty) return;
+
+    // Ambil data user dari Firestore dan SharedPreferences
+    String displayName = 'Anonymous';
+    String avatar = '';
+
     final db = FirebaseFirestore.instance;
     try {
-      // Ambil data user dari Firestore
-      final userDoc = await db.collection('users').doc(userId).get();
-      final userData = userDoc.data();
-      final displayName = userData != null
-          ? ((userData['first_name'] ?? '') +
-                    ' ' +
-                    (userData['last_name'] ?? ''))
-                .trim()
-          : 'Anonymous';
-      final avatar = userData != null
-          ? (userData['profile_photo_url'] ?? '')
-          : '';
-      final commentsRef = db
-          .collection('products')
-          .doc(product.id)
-          .collection('comments');
+      // Coba ambil dari SharedPreferences dulu
+      final firstName = await AuthService.getFirstName() ?? '';
+      final lastName = await AuthService.getLastName() ?? '';
+      final fullName = '$firstName $lastName'.trim();
+      final photo = await AuthService.getPhoto();
+
+      if (fullName.isNotEmpty) {
+        displayName = fullName;
+      }
+      if (photo != null && photo.isNotEmpty) {
+        avatar = photo;
+      }
+
+      // Jika masih kosong, coba dari Firestore
+      if (displayName == 'Anonymous' || avatar.isEmpty) {
+        final userDoc = await db.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          final userData = userDoc.data();
+
+          if (displayName == 'Anonymous') {
+            final fsFirstName = userData?['first_name'] ?? '';
+            final fsLastName = userData?['last_name'] ?? '';
+            final fsFullName = '$fsFirstName $fsLastName'.trim();
+
+            displayName = fsFullName.isNotEmpty
+                ? fsFullName
+                : userData?['displayName'] ??
+                      userData?['name'] ??
+                      AuthService.currentUser?.displayName ??
+                      'Anonymous';
+          }
+
+          if (avatar.isEmpty) {
+            avatar =
+                userData?['profile_photo_url'] ??
+                userData?['profile_photo'] ??
+                AuthService.currentUser?.photoURL ??
+                '';
+          }
+        }
+      }
+
+      print('DEBUG: Final displayName: $displayName, avatar: $avatar');
+
       if (editingCommentId != null) {
-        // Edit
-        await commentsRef.doc(editingCommentId).update({
-          'comment': text,
-          'editedAt': FieldValue.serverTimestamp(),
-        });
+        await db
+            .collection('products')
+            .doc(product.id)
+            .collection('comments')
+            .doc(editingCommentId)
+            .update({
+              'comment': text,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
       } else {
-        // Add
-        await commentsRef.add({
-          'userId': userId,
-          'displayName': displayName.isNotEmpty ? displayName : 'Anonymous',
-          'avatar': avatar,
-          'comment': text,
-          'createdAt': FieldValue.serverTimestamp(),
+        await db
+            .collection('products')
+            .doc(product.id)
+            .collection('comments')
+            .add({
+              'comment': text,
+              'userId': userId,
+              'displayName': displayName,
+              'avatar': avatar,
+              'parentCommentId': replyToCommentId,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+      }
+
+      if (mounted) {
+        setState(() {
+          editingCommentId = null;
+          editingCommentText = null;
+          replyToCommentId = null;
+          replyToUserName = null;
+          _discussionController.clear();
         });
       }
-      _discussionController.clear();
-      editingCommentId = null;
-      editingCommentText = null;
+
       await _loadDiscussionComments();
     } catch (e) {
       print('Error add/edit discussion: $e');
@@ -181,46 +253,21 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     setState(() {
       editingCommentId = null;
       editingCommentText = null;
+      replyToCommentId = null;
+      replyToUserName = null;
       _discussionController.clear();
     });
   }
 
-  int get effectiveReviewCount =>
-      productReviews.isNotEmpty ? productReviews.length : 0;
-
-  int quantity = 1;
-  late TabController _tabController;
-  bool isFavorite = false;
-  late Product product;
-  late List<String> imageUrls;
-  late List<Review> productReviews;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    product =
-        widget.product ??
-        Product(
-          id: 'default-product',
-          name: 'Fresh Orange',
-          category: 'FRUITS',
-          imageUrl: 'assets/images/orange.jpg',
-          description:
-              'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.',
-          price: 4.9,
-          stock: 0,
-        );
-    // Ambil list gambar dari produk, fallback ke 1 gambar jika tidak ada
-    imageUrls =
-        (widget.product != null &&
-            widget.product!.imageUrls != null &&
-            widget.product!.imageUrls!.isNotEmpty)
-        ? widget.product!.imageUrls!
-        : [product.imageUrl ?? 'assets/images/orange.jpg'];
-    productReviews = widget.reviews ?? [];
-    _checkIfInWishlist();
-    _loadReviewsFromFirestore();
+  void _startReplyComment(String commentId, String userName) {
+    setState(() {
+      replyToCommentId = commentId;
+      replyToUserName = userName;
+      editingCommentId = null;
+      editingCommentText = null;
+      _discussionController.clear();
+    });
+    _discussionFocusNode.requestFocus();
   }
 
   Future<void> _loadReviewsFromFirestore() async {
@@ -332,6 +379,8 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _discussionController.dispose();
+    _discussionFocusNode.dispose();
     super.dispose();
   }
 
@@ -1000,150 +1049,577 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                                             )
                                           : ListView.separated(
                                               padding: const EdgeInsets.all(16),
-                                              itemCount:
-                                                  discussionComments.length,
+                                              itemCount: discussionComments
+                                                  .where(
+                                                    (c) =>
+                                                        c['parentCommentId'] ==
+                                                        null,
+                                                  )
+                                                  .length,
                                               separatorBuilder: (_, __) =>
-                                                  const Divider(),
+                                                  const SizedBox(height: 12),
                                               itemBuilder: (context, idx) {
-                                                final c =
-                                                    discussionComments[idx];
+                                                // Filter hanya parent comments (tidak punya parentCommentId)
+                                                final parentComments =
+                                                    discussionComments
+                                                        .where(
+                                                          (c) =>
+                                                              c['parentCommentId'] ==
+                                                              null,
+                                                        )
+                                                        .toList();
+
+                                                final c = parentComments[idx];
+
                                                 final isOwn =
                                                     AuthService.currentUserId ==
                                                     c['userId'];
-                                                return ListTile(
-                                                  leading: CircleAvatar(
-                                                    backgroundImage:
-                                                        (c['avatar'] ?? '')
-                                                            .toString()
-                                                            .startsWith('http')
-                                                        ? NetworkImage(
-                                                            c['avatar'] ?? '',
-                                                          )
-                                                        : null,
-                                                    child:
-                                                        (c['avatar'] ?? '')
-                                                            .toString()
-                                                            .isEmpty
-                                                        ? Icon(
-                                                            Icons.person,
-                                                            color: Colors.grey,
-                                                          )
-                                                        : null,
-                                                  ),
-                                                  title: Row(
-                                                    children: [
-                                                      Text(
-                                                        c['displayName'] ??
-                                                            'Anonymous',
-                                                        style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                      if (isOwn)
-                                                        Padding(
-                                                          padding:
-                                                              const EdgeInsets.only(
-                                                                left: 6,
-                                                              ),
-                                                          child: Container(
-                                                            padding:
-                                                                const EdgeInsets.symmetric(
-                                                                  horizontal: 6,
-                                                                  vertical: 2,
-                                                                ),
-                                                            decoration:
-                                                                BoxDecoration(
-                                                                  color: Colors
-                                                                      .green[50],
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        6,
+
+                                                // Get replies for this comment (yang punya parentCommentId == c['id'])
+                                                final replies = discussionComments
+                                                    .where(
+                                                      (reply) =>
+                                                          reply['parentCommentId'] ==
+                                                          c['id'],
+                                                    )
+                                                    .toList();
+
+                                                return Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    // Main comment
+                                                    Row(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      mainAxisAlignment: isOwn
+                                                          ? MainAxisAlignment
+                                                                .end
+                                                          : MainAxisAlignment
+                                                                .start,
+                                                      children: [
+                                                        if (!isOwn) ...[
+                                                          CircleAvatar(
+                                                            backgroundImage:
+                                                                (c['avatar'] ??
+                                                                        '')
+                                                                    .toString()
+                                                                    .startsWith(
+                                                                      'http',
+                                                                    )
+                                                                ? NetworkImage(
+                                                                    c['avatar'] ??
+                                                                        '',
+                                                                  )
+                                                                : null,
+                                                            child:
+                                                                (c['avatar'] ??
+                                                                        '')
+                                                                    .toString()
+                                                                    .isEmpty
+                                                                ? Icon(
+                                                                    Icons
+                                                                        .person,
+                                                                    color: Colors
+                                                                        .grey,
+                                                                  )
+                                                                : null,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 10,
+                                                          ),
+                                                        ],
+                                                        Flexible(
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                isOwn
+                                                                ? CrossAxisAlignment
+                                                                      .end
+                                                                : CrossAxisAlignment
+                                                                      .start,
+                                                            children: [
+                                                              Row(
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                children: [
+                                                                  Text(
+                                                                    c['displayName'] ??
+                                                                        'Anonymous',
+                                                                    style: const TextStyle(
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                    ),
+                                                                  ),
+                                                                  if (isOwn)
+                                                                    Padding(
+                                                                      padding:
+                                                                          const EdgeInsets.only(
+                                                                            left:
+                                                                                6,
+                                                                          ),
+                                                                      child: Container(
+                                                                        padding: const EdgeInsets.symmetric(
+                                                                          horizontal:
+                                                                              6,
+                                                                          vertical:
+                                                                              2,
+                                                                        ),
+                                                                        decoration: BoxDecoration(
+                                                                          color:
+                                                                              Colors.green[50],
+                                                                          borderRadius:
+                                                                              BorderRadius.circular(
+                                                                                6,
+                                                                              ),
+                                                                        ),
+                                                                        child: const Text(
+                                                                          'Anda',
+                                                                          style: TextStyle(
+                                                                            fontSize:
+                                                                                10,
+                                                                            color:
+                                                                                Colors.green,
+                                                                          ),
+                                                                        ),
                                                                       ),
-                                                                ),
-                                                            child: const Text(
-                                                              'Anda',
-                                                              style: TextStyle(
-                                                                fontSize: 10,
-                                                                color: Colors
-                                                                    .green,
+                                                                    ),
+                                                                ],
                                                               ),
-                                                            ),
+                                                              const SizedBox(
+                                                                height: 6,
+                                                              ),
+                                                              Container(
+                                                                padding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          12,
+                                                                      vertical:
+                                                                          10,
+                                                                    ),
+                                                                decoration: BoxDecoration(
+                                                                  color: isOwn
+                                                                      ? const Color(
+                                                                          0xFFDFF5E4,
+                                                                        )
+                                                                      : const Color(
+                                                                          0xFFF2F2F2,
+                                                                        ),
+                                                                  borderRadius: BorderRadius.only(
+                                                                    topLeft:
+                                                                        const Radius.circular(
+                                                                          14,
+                                                                        ),
+                                                                    topRight:
+                                                                        const Radius.circular(
+                                                                          14,
+                                                                        ),
+                                                                    bottomLeft:
+                                                                        Radius.circular(
+                                                                          isOwn
+                                                                              ? 14
+                                                                              : 4,
+                                                                        ),
+                                                                    bottomRight:
+                                                                        Radius.circular(
+                                                                          isOwn
+                                                                              ? 4
+                                                                              : 14,
+                                                                        ),
+                                                                  ),
+                                                                ),
+                                                                child: Column(
+                                                                  crossAxisAlignment:
+                                                                      isOwn
+                                                                      ? CrossAxisAlignment
+                                                                            .end
+                                                                      : CrossAxisAlignment
+                                                                            .start,
+                                                                  children: [
+                                                                    Text(
+                                                                      c['comment'] ??
+                                                                          '',
+                                                                      style: const TextStyle(
+                                                                        fontSize:
+                                                                            15,
+                                                                        height:
+                                                                            1.4,
+                                                                      ),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      height: 6,
+                                                                    ),
+                                                                    Text(
+                                                                      c['createdAt'] !=
+                                                                                  null &&
+                                                                              c['createdAt']
+                                                                                  is Timestamp
+                                                                          ? _formatDate(
+                                                                              (c['createdAt']
+                                                                                      as Timestamp)
+                                                                                  .toDate(),
+                                                                            )
+                                                                          : '',
+                                                                      style: TextStyle(
+                                                                        fontSize:
+                                                                            11,
+                                                                        color: Colors
+                                                                            .grey[500],
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                              // Reply button for all comments
+                                                              const SizedBox(
+                                                                height: 6,
+                                                              ),
+                                                              GestureDetector(
+                                                                onTap: () =>
+                                                                    _startReplyComment(
+                                                                      c['id'],
+                                                                      c['displayName'] ??
+                                                                          'Anonymous',
+                                                                    ),
+                                                                child: Text(
+                                                                  'Balas',
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        12,
+                                                                    color: Colors
+                                                                        .blue[700],
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ),
-                                                    ],
-                                                  ),
-                                                  subtitle: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        c['comment'] ?? '',
-                                                        style: TextStyle(
-                                                          fontSize: 15,
+                                                        if (isOwn) ...[
+                                                          const SizedBox(
+                                                            width: 10,
+                                                          ),
+                                                          CircleAvatar(
+                                                            backgroundImage:
+                                                                (c['avatar'] ??
+                                                                        '')
+                                                                    .toString()
+                                                                    .startsWith(
+                                                                      'http',
+                                                                    )
+                                                                ? NetworkImage(
+                                                                    c['avatar'] ??
+                                                                        '',
+                                                                  )
+                                                                : null,
+                                                            child:
+                                                                (c['avatar'] ??
+                                                                        '')
+                                                                    .toString()
+                                                                    .isEmpty
+                                                                ? Icon(
+                                                                    Icons
+                                                                        .person,
+                                                                    color: Colors
+                                                                        .grey,
+                                                                  )
+                                                                : null,
+                                                          ),
+                                                          if (isOwn)
+                                                            Row(
+                                                              mainAxisSize:
+                                                                  MainAxisSize
+                                                                      .min,
+                                                              children: [
+                                                                IconButton(
+                                                                  icon: const Icon(
+                                                                    Icons.edit,
+                                                                    size: 20,
+                                                                    color: Colors
+                                                                        .blue,
+                                                                  ),
+                                                                  onPressed: () =>
+                                                                      _startEditComment(
+                                                                        c['id'],
+                                                                        c['comment'],
+                                                                      ),
+                                                                  tooltip:
+                                                                      'Edit',
+                                                                ),
+                                                                IconButton(
+                                                                  icon: const Icon(
+                                                                    Icons
+                                                                        .delete,
+                                                                    size: 20,
+                                                                    color: Colors
+                                                                        .red,
+                                                                  ),
+                                                                  onPressed: () =>
+                                                                      _deleteDiscussionComment(
+                                                                        c['id'],
+                                                                      ),
+                                                                  tooltip:
+                                                                      'Hapus',
+                                                                ),
+                                                              ],
+                                                            ),
+                                                        ],
+                                                      ],
+                                                    ),
+                                                    // Show replies
+                                                    if (replies.isNotEmpty)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              left: 50,
+                                                              top: 8,
+                                                            ),
+                                                        child: Column(
+                                                          children: replies.map((
+                                                            reply,
+                                                          ) {
+                                                            final isReplyOwn =
+                                                                AuthService
+                                                                    .currentUserId ==
+                                                                reply['userId'];
+                                                            return Padding(
+                                                              padding:
+                                                                  const EdgeInsets.only(
+                                                                    bottom: 8,
+                                                                  ),
+                                                              child: Row(
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .start,
+                                                                mainAxisAlignment:
+                                                                    isReplyOwn
+                                                                    ? MainAxisAlignment
+                                                                          .end
+                                                                    : MainAxisAlignment
+                                                                          .start,
+                                                                children: [
+                                                                  if (!isReplyOwn) ...[
+                                                                    CircleAvatar(
+                                                                      radius:
+                                                                          16,
+                                                                      backgroundImage:
+                                                                          (reply['avatar'] ??
+                                                                                  '')
+                                                                              .toString()
+                                                                              .startsWith('http')
+                                                                          ? NetworkImage(
+                                                                              reply['avatar'] ??
+                                                                                  '',
+                                                                            )
+                                                                          : null,
+                                                                      child:
+                                                                          (reply['avatar'] ??
+                                                                                  '')
+                                                                              .toString()
+                                                                              .isEmpty
+                                                                          ? Icon(
+                                                                              Icons.person,
+                                                                              size: 16,
+                                                                              color: Colors.grey,
+                                                                            )
+                                                                          : null,
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                  ],
+                                                                  Flexible(
+                                                                    child: Column(
+                                                                      crossAxisAlignment:
+                                                                          isReplyOwn
+                                                                          ? CrossAxisAlignment.end
+                                                                          : CrossAxisAlignment.start,
+                                                                      children: [
+                                                                        Text(
+                                                                          reply['displayName'] ??
+                                                                              'Anonymous',
+                                                                          style: const TextStyle(
+                                                                            fontWeight:
+                                                                                FontWeight.bold,
+                                                                            fontSize:
+                                                                                13,
+                                                                          ),
+                                                                        ),
+                                                                        const SizedBox(
+                                                                          height:
+                                                                              4,
+                                                                        ),
+                                                                        Container(
+                                                                          padding: const EdgeInsets.symmetric(
+                                                                            horizontal:
+                                                                                10,
+                                                                            vertical:
+                                                                                8,
+                                                                          ),
+                                                                          decoration: BoxDecoration(
+                                                                            color:
+                                                                                isReplyOwn
+                                                                                ? const Color(
+                                                                                    0xFFDFF5E4,
+                                                                                  )
+                                                                                : const Color(
+                                                                                    0xFFF2F2F2,
+                                                                                  ),
+                                                                            borderRadius: BorderRadius.circular(
+                                                                              12,
+                                                                            ),
+                                                                          ),
+                                                                          child: Column(
+                                                                            crossAxisAlignment:
+                                                                                isReplyOwn
+                                                                                ? CrossAxisAlignment.end
+                                                                                : CrossAxisAlignment.start,
+                                                                            children: [
+                                                                              Text(
+                                                                                reply['comment'] ??
+                                                                                    '',
+                                                                                style: const TextStyle(
+                                                                                  fontSize: 14,
+                                                                                  height: 1.3,
+                                                                                ),
+                                                                              ),
+                                                                              const SizedBox(
+                                                                                height: 4,
+                                                                              ),
+                                                                              Text(
+                                                                                reply['createdAt'] !=
+                                                                                            null &&
+                                                                                        reply['createdAt']
+                                                                                            is Timestamp
+                                                                                    ? _formatDate(
+                                                                                        (reply['createdAt']
+                                                                                                as Timestamp)
+                                                                                            .toDate(),
+                                                                                      )
+                                                                                    : '',
+                                                                                style: TextStyle(
+                                                                                  fontSize: 10,
+                                                                                  color: Colors.grey[500],
+                                                                                ),
+                                                                              ),
+                                                                            ],
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                  if (isReplyOwn) ...[
+                                                                    const SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                    CircleAvatar(
+                                                                      radius:
+                                                                          16,
+                                                                      backgroundImage:
+                                                                          (reply['avatar'] ??
+                                                                                  '')
+                                                                              .toString()
+                                                                              .startsWith('http')
+                                                                          ? NetworkImage(
+                                                                              reply['avatar'] ??
+                                                                                  '',
+                                                                            )
+                                                                          : null,
+                                                                      child:
+                                                                          (reply['avatar'] ??
+                                                                                  '')
+                                                                              .toString()
+                                                                              .isEmpty
+                                                                          ? Icon(
+                                                                              Icons.person,
+                                                                              size: 16,
+                                                                              color: Colors.grey,
+                                                                            )
+                                                                          : null,
+                                                                    ),
+                                                                    Row(
+                                                                      mainAxisSize:
+                                                                          MainAxisSize
+                                                                              .min,
+                                                                      children: [
+                                                                        IconButton(
+                                                                          icon: const Icon(
+                                                                            Icons.edit,
+                                                                            size:
+                                                                                18,
+                                                                            color:
+                                                                                Colors.blue,
+                                                                          ),
+                                                                          onPressed: () => _startEditComment(
+                                                                            reply['id'],
+                                                                            reply['comment'],
+                                                                          ),
+                                                                          tooltip:
+                                                                              'Edit',
+                                                                        ),
+                                                                        IconButton(
+                                                                          icon: const Icon(
+                                                                            Icons.delete,
+                                                                            size:
+                                                                                18,
+                                                                            color:
+                                                                                Colors.red,
+                                                                          ),
+                                                                          onPressed: () => _deleteDiscussionComment(
+                                                                            reply['id'],
+                                                                          ),
+                                                                          tooltip:
+                                                                              'Hapus',
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ],
+                                                                ],
+                                                              ),
+                                                            );
+                                                          }).toList(),
                                                         ),
                                                       ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        c['createdAt'] !=
-                                                                    null &&
-                                                                c['createdAt']
-                                                                    is Timestamp
-                                                            ? _formatDate(
-                                                                (c['createdAt']
-                                                                        as Timestamp)
-                                                                    .toDate(),
-                                                              )
-                                                            : '',
-                                                        style: TextStyle(
-                                                          fontSize: 11,
-                                                          color:
-                                                              Colors.grey[500],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  trailing: isOwn
-                                                      ? Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            IconButton(
-                                                              icon: const Icon(
-                                                                Icons.edit,
-                                                                size: 20,
-                                                                color:
-                                                                    Colors.blue,
-                                                              ),
-                                                              onPressed: () =>
-                                                                  _startEditComment(
-                                                                    c['id'],
-                                                                    c['comment'],
-                                                                  ),
-                                                              tooltip: 'Edit',
-                                                            ),
-                                                            IconButton(
-                                                              icon: const Icon(
-                                                                Icons.delete,
-                                                                size: 20,
-                                                                color:
-                                                                    Colors.red,
-                                                              ),
-                                                              onPressed: () =>
-                                                                  _deleteDiscussionComment(
-                                                                    c['id'],
-                                                                  ),
-                                                              tooltip: 'Hapus',
-                                                            ),
-                                                          ],
-                                                        )
-                                                      : null,
+                                                  ],
                                                 );
                                               },
                                             ),
                                     ),
                                     const SizedBox(height: 8),
+                                    if (replyToUserName != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        color: Colors.blue[50],
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                'Membalas: $replyToUserName',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.blue[900],
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.close,
+                                                size: 20,
+                                                color: Colors.blue[900],
+                                              ),
+                                              onPressed: _cancelEditComment,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     if (AuthService.currentUserId != null &&
                                         AuthService.currentUserId!.isNotEmpty)
                                       Padding(
@@ -1157,6 +1633,11 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                                               child: TextField(
                                                 controller:
                                                     _discussionController,
+                                                focusNode: _discussionFocusNode,
+                                                onTap: () {
+                                                  _discussionFocusNode
+                                                      .requestFocus();
+                                                },
                                                 decoration: InputDecoration(
                                                   hintText:
                                                       editingCommentId != null
