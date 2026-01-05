@@ -1,12 +1,12 @@
 const midtransClient = require('midtrans-client');
 const admin = require('firebase-admin');
 
-// Konfigurasi Midtrans dengan kredensial Anda
-// Merchant ID: G562390311
+// Konfigurasi Midtrans via environment variable (jangan hardcode di repo)
+// Set di .env atau env project: MIDTRANS_SERVER_KEY, MIDTRANS_CLIENT_KEY
 const snap = new midtransClient.Snap({
-  isProduction: false, // Set false untuk sandbox/testing
-  serverKey: 'REDACTED_OLD_SERVER_KEY',
-  clientKey: 'REDACTED_OLD_CLIENT_KEY'
+  isProduction: false,
+  serverKey: process.env.MIDTRANS_SERVER_KEY,
+  clientKey: process.env.MIDTRANS_CLIENT_KEY,
 });
 
 /**

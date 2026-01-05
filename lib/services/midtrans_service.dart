@@ -7,10 +7,9 @@ class MidtransService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   // WARNING: Server key di klien adalah tidak aman. Hanya untuk uji coba.
-  static const String _midtransServerKey =
-      'REDACTED_MIDTRANS_SERVER_KEY';
-  static const String _midtransClientKey =
-      'REDACTED_MIDTRANS_CLIENT_KEY'; // tersedia jika ingin ditampilkan di UI
+  // TODO: inject via secure backend; jangan commit server key ke repo
+  static const String _midtransServerKey = 'REPLACE_WITH_SERVER_KEY';
+  static const String _midtransClientKey = 'REPLACE_WITH_CLIENT_KEY';
   // Rate konversi USD→IDR untuk pengiriman ke Midtrans (IDR wajib tanpa cent)
   static const double _usdToIdrRate = 15500.0;
 
