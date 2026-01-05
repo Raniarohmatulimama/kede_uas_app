@@ -3,6 +3,18 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 admin.initializeApp();
 
+// Import Midtrans functions
+const {
+  createMidtransTransaction,
+  handleMidtransNotification,
+  checkTransactionStatus
+} = require('./midtrans');
+
+// Export Midtrans Cloud Functions
+exports.createMidtransTransaction = functions.https.onCall(createMidtransTransaction);
+exports.handleMidtransNotification = functions.https.onRequest(handleMidtransNotification);
+exports.checkTransactionStatus = functions.https.onCall(checkTransactionStatus);
+
 exports.createPaymentRecord = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Login required');

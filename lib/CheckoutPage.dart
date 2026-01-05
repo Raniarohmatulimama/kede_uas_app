@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'PaymentPage.dart';
 import 'services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'midtrans_payment_page.dart';
+import 'services/midtrans_service.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<Map<String, dynamic>> cartItems;
@@ -513,30 +515,149 @@ class _CheckoutPageState extends State<CheckoutPage> {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _proceedToPayment,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CB32B),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _proceedToPayment,
+                icon: const Icon(Icons.payment),
+                label: const Text(
+                  'NEXT (Standard Payment)',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CB32B),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
               ),
-              elevation: 0,
             ),
-            child: const Text(
-              'NEXT',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _proceedToMidtransPayment,
+                icon: const Icon(Icons.credit_card),
+                label: const Text(
+                  'PAY WITH MIDTRANS',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF4CB32B),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Color(0xFF4CB32B), width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _proceedToMidtransPayment() async {
+    final user = AuthService.currentUser;
+    if (user == null) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text(
+            'Anda harus login terlebih dahulu untuk melanjutkan checkout.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushNamed('/login');
+              },
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (_formKey.currentState!.validate()) {
+      // Save shipping address if needed
+      if (_saveAddress) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'shipping_phone_${user.uid}',
+          _phoneController.text,
+        );
+        await prefs.setString(
+          'shipping_zip_${user.uid}',
+          _zipCodeController.text,
+        );
+        await prefs.setString(
+          'shipping_city_${user.uid}',
+          _cityController.text,
+        );
+        await prefs.setString('shipping_country_${user.uid}', _selectedCountry);
+        await prefs.setString(
+          'shipping_address_${user.uid}',
+          _addressController.text,
+        );
+      }
+
+      // Generate order ID
+      final orderId = MidtransService.generateOrderId();
+
+      // Prepare items for Midtrans
+      final items = widget.cartItems.map((item) {
+        return {
+          'id': item['id']?.toString() ?? 'item',
+          'name': item['name']?.toString() ?? 'Product',
+          'price': (item['price'] ?? 0.0) as double,
+          'quantity': (item['quantity'] ?? 1) as int,
+        };
+      }).toList();
+
+      // Navigate to Midtrans payment page
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MidtransPaymentPage(
+            orderId: orderId,
+            amount: widget.total + 5.0, // Include delivery fee
+            customerName: _nameController.text,
+            customerEmail: user.email ?? '',
+            customerPhone: _phoneController.text,
+            items: items,
+          ),
+        ),
+      );
+
+      // Handle payment result
+      if (result == 'success' && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment successful!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Navigate back or to order confirmation
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    }
   }
 }
